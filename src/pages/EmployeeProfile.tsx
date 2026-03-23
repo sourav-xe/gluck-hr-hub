@@ -1,14 +1,19 @@
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { employees, attendanceRecords, leaveRequests, payrollRecords, generatedDocuments, leaveBalances } from '@/data/mockData';
+import { employees as mockEmployees, attendanceRecords, leaveRequests, payrollRecords, generatedDocuments, leaveBalances } from '@/data/mockData';
+import { fetchEmployeeById } from '@/lib/employeeService';
+import { Employee } from '@/types/hr';
 import StatusBadge from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Edit, FileDown, Mail, Phone, MapPin, Building, Calendar, Briefcase, CreditCard, User, Globe, Shield } from 'lucide-react';
+import { ArrowLeft, Edit, FileDown, Mail, Phone, MapPin, Building, Calendar, Briefcase, CreditCard, User, Globe, Shield, Loader2 } from 'lucide-react';
 
 function calcTenure(joiningDate: string) {
   const parts = joiningDate.split('/');
+  if (parts.length !== 3) return 'N/A';
   const joined = new Date(+parts[2], +parts[1] - 1, +parts[0]);
+  if (isNaN(joined.getTime())) return 'N/A';
   const now = new Date();
   const months = (now.getFullYear() - joined.getFullYear()) * 12 + (now.getMonth() - joined.getMonth());
   const y = Math.floor(months / 12);
