@@ -10,22 +10,46 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { useToast } from '@/hooks/use-toast';
 import { CalendarCheck, CalendarOff, Laptop, Clock, LogIn, LogOut, MapPin, Wifi } from 'lucide-react';
 
+interface AttendanceEntry {
+  date: string;
+  clockIn: string;
+  clockOut: string | null;
+  totalHours: number | null;
+  status: string;
+}
+
 export default function MyAttendance() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const myRecords = attendanceRecords.filter(a => a.employeeId === user.employeeId).slice(0, 30);
-  const [clockedIn, setClockedIn] = useState(false);
-  const [clockInTime, setClockInTime] = useState<string | null>(null);
   const [showClockDialog, setShowClockDialog] = useState(false);
   const [dialogAction, setDialogAction] = useState<'in' | 'out'>('in');
 
-  const present = myRecords.filter(a => a.status === 'P').length;
-  const leave = myRecords.filter(a => a.status === 'L').length;
-  const wfh = myRecords.filter(a => a.status === 'WFH').length;
-  const halfDay = myRecords.filter(a => a.status === 'HD').length;
+  // Build attendance entries from mock data
+  const mockEntries: AttendanceEntry[] = attendanceRecords
+    .filter(a => a.employeeId === user.employeeId)
+    .slice(0, 30)
+    .map(a => ({
+      date: a.date,
+      clockIn: a.clockIn || '—',
+      clockOut: a.clockOut || null,
+      totalHours: a.totalHours || null,
+      status: a.status,
+    }));
+
+  // Live clock-in/out entries for today
+  const [todayEntries, setTodayEntries] = useState<AttendanceEntry[]>([]);
+  const activeClock = todayEntries.find(e => e.clockOut === null);
 
   const currentTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
   const currentDate = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+  const allEntries = [...todayEntries, ...mockEntries];
+
+  const present = allEntries.filter(a => a.status === 'P').length;
+  const leave = allEntries.filter(a => a.status === 'L').length;
+  const wfh = allEntries.filter(a => a.status === 'WFH').length;
+  const halfDay = allEntries.filter(a => a.status === 'HD').length;
 
   const handleClockAction = (action: 'in' | 'out') => {
     setDialogAction(action);
@@ -34,23 +58,52 @@ export default function MyAttendance() {
 
   const confirmClock = () => {
     const now = new Date();
-    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
 
     if (dialogAction === 'in') {
+      // Create a new row with clock-in, clock-out empty
+      const newEntry: AttendanceEntry = {
+        date: todayStr,
+        clockIn: timeStr,
+        clockOut: null,
+        totalHours: null,
+        status: 'P',
+      };
+      setTodayEntries(prev => [newEntry, ...prev]);
+
       if (defaultAttendanceSettings.ipRestrictionEnabled) {
         toast({ title: '📍 IP Verified', description: `Clock-in from approved location at ${timeStr}` });
       } else {
         toast({ title: '✅ Clocked In', description: `You clocked in at ${timeStr}` });
       }
-      setClockedIn(true);
-      setClockInTime(timeStr);
     } else {
-      const hours = clockInTime ? '8.5' : '0';
-      toast({ title: '✅ Clocked Out', description: `You clocked out at ${timeStr}. Total: ${hours} hours` });
-      setClockedIn(false);
-      setClockInTime(null);
+      // Fill the clock-out of the active entry
+      setTodayEntries(prev => prev.map(e => {
+        if (e.clockOut === null) {
+          const inParts = parseTime(e.clockIn);
+          const outParts = parseTime(timeStr);
+          const totalMinutes = outParts - inParts;
+          const hours = Math.round((totalMinutes / 60) * 10) / 10;
+          const status = hours < defaultAttendanceSettings.halfDayThresholdHours ? 'HD' : 'P';
+          return { ...e, clockOut: timeStr, totalHours: hours > 0 ? hours : 0, status };
+        }
+        return e;
+      }));
+      toast({ title: '✅ Clocked Out', description: `You clocked out at ${timeStr}` });
     }
     setShowClockDialog(false);
+  };
+
+  // Parse "HH:MM:SS AM/PM" to minutes since midnight
+  const parseTime = (t: string): number => {
+    const match = t.match(/(\d+):(\d+):?(\d+)?\s*(AM|PM)/i);
+    if (!match) return 0;
+    let h = parseInt(match[1]);
+    const m = parseInt(match[2]);
+    const period = match[4].toUpperCase();
+    if (period === 'PM' && h !== 12) h += 12;
+    if (period === 'AM' && h === 12) h = 0;
+    return h * 60 + m;
   };
 
   return (
@@ -63,15 +116,15 @@ export default function MyAttendance() {
           <div>
             <p className="text-2xl font-bold">{currentTime}</p>
             <p className="text-sm text-muted-foreground">{currentDate}</p>
-            {clockedIn && clockInTime && (
+            {activeClock && (
               <div className="flex items-center gap-2 mt-2">
                 <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-                <span className="text-xs text-success font-medium">Clocked in since {clockInTime}</span>
+                <span className="text-xs text-success font-medium">Clocked in since {activeClock.clockIn}</span>
               </div>
             )}
           </div>
           <div className="flex gap-3">
-            {!clockedIn ? (
+            {!activeClock ? (
               <Button onClick={() => handleClockAction('in')} className="gap-2 rounded-xl shadow-md shadow-success/20 bg-success hover:bg-success/90 text-success-foreground">
                 <LogIn className="w-4 h-4" /> Clock In
               </Button>
@@ -109,11 +162,19 @@ export default function MyAttendance() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {myRecords.map((a, i) => (
-              <TableRow key={i} className="border-border/30">
+            {allEntries.length === 0 ? (
+              <TableRow><TableCell colSpan={5} className="text-center py-12 text-muted-foreground">No attendance records</TableCell></TableRow>
+            ) : allEntries.map((a, i) => (
+              <TableRow key={i} className={`border-border/30 ${a.clockOut === null && i < todayEntries.length ? 'bg-success/5' : ''}`}>
                 <TableCell className="text-sm font-mono">{a.date}</TableCell>
-                <TableCell className="text-sm font-mono text-muted-foreground">{a.clockIn || '—'}</TableCell>
-                <TableCell className="text-sm font-mono text-muted-foreground">{a.clockOut || '—'}</TableCell>
+                <TableCell className="text-sm font-mono text-success">{a.clockIn}</TableCell>
+                <TableCell className="text-sm font-mono">
+                  {a.clockOut ? (
+                    <span className="text-destructive">{a.clockOut}</span>
+                  ) : (
+                    <span className="text-warning animate-pulse font-medium">— Active</span>
+                  )}
+                </TableCell>
                 <TableCell className="text-sm font-mono">{a.totalHours ? `${a.totalHours}h` : '—'}</TableCell>
                 <TableCell><StatusBadge status={a.status} /></TableCell>
               </TableRow>
