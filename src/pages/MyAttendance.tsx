@@ -20,18 +20,18 @@ export default function MyAttendance() {
       <PageHeader title="My Attendance" description="Your personal attendance records" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard title="Present" value={present} icon={<CalendarCheck className="w-5 h-5" />} />
-        <StatCard title="Leave Days" value={leave} icon={<CalendarOff className="w-5 h-5" />} />
-        <StatCard title="WFH Days" value={wfh} icon={<Laptop className="w-5 h-5" />} />
-        <StatCard title="Half Days" value={halfDay} icon={<Clock className="w-5 h-5" />} />
+        <StatCard title="Present" value={present} icon={<CalendarCheck className="w-5 h-5" />} gradient="bg-gradient-to-br from-success to-info" />
+        <StatCard title="Leave Days" value={leave} icon={<CalendarOff className="w-5 h-5" />} gradient="bg-gradient-to-br from-destructive to-warning" />
+        <StatCard title="WFH Days" value={wfh} icon={<Laptop className="w-5 h-5" />} gradient="bg-gradient-to-br from-info to-primary" />
+        <StatCard title="Half Days" value={halfDay} icon={<Clock className="w-5 h-5" />} gradient="bg-gradient-to-br from-warning to-accent" />
       </div>
 
-      <div className="bg-card rounded-lg border overflow-hidden">
+      <div className="glass-card rounded-2xl overflow-hidden">
         <Table>
-          <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow className="border-border/50"><TableHead>Date</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
           <TableBody>
             {myRecords.map((a, i) => (
-              <TableRow key={i}><TableCell className="text-sm">{a.date}</TableCell><TableCell><StatusBadge status={a.status} /></TableCell></TableRow>
+              <TableRow key={i} className="border-border/30"><TableCell className="text-sm font-mono">{a.date}</TableCell><TableCell><StatusBadge status={a.status} /></TableCell></TableRow>
             ))}
           </TableBody>
         </Table>

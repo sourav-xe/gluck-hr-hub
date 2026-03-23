@@ -54,7 +54,7 @@ export default function LeaveForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    toast({ title: 'Leave request submitted', description: `${calcDays()} day(s) leave request has been submitted for approval.` });
+    toast({ title: '📋 Leave request submitted', description: `${calcDays()} day(s) leave request has been submitted for approval.` });
     navigate('/leaves');
   };
 
@@ -62,15 +62,15 @@ export default function LeaveForm() {
     <div className="animate-fade-in max-w-2xl">
       <PageHeader
         title="New Leave Request"
-        action={<Button variant="ghost" onClick={() => navigate('/leaves')} className="gap-2"><ArrowLeft className="w-4 h-4" /> Back</Button>}
+        action={<Button variant="ghost" onClick={() => navigate('/leaves')} className="gap-2 rounded-xl"><ArrowLeft className="w-4 h-4" /> Back</Button>}
       />
 
-      <form onSubmit={handleSubmit} className="bg-card rounded-lg border p-6 space-y-4">
+      <form onSubmit={handleSubmit} className="glass-card rounded-2xl p-6 space-y-5">
         {!isEmployee && (
           <div>
-            <Label>Employee <span className="text-destructive">*</span></Label>
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Employee <span className="text-destructive">*</span></Label>
             <Select value={form.employeeId} onValueChange={v => setForm(p => ({ ...p, employeeId: v }))}>
-              <SelectTrigger className={errors.employeeId ? 'border-destructive' : ''}><SelectValue placeholder="Select employee" /></SelectTrigger>
+              <SelectTrigger className={`mt-1.5 rounded-xl h-10 ${errors.employeeId ? 'border-destructive' : ''}`}><SelectValue placeholder="Select employee" /></SelectTrigger>
               <SelectContent>
                 {employees.map(e => <SelectItem key={e.id} value={e.id}>{e.fullName}</SelectItem>)}
               </SelectContent>
@@ -81,15 +81,15 @@ export default function LeaveForm() {
 
         {isEmployee && (
           <div>
-            <Label>Employee</Label>
-            <Input disabled value={user.name} />
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Employee</Label>
+            <Input disabled value={user.name} className="mt-1.5 rounded-xl h-10" />
           </div>
         )}
 
         <div>
-          <Label>Leave Type <span className="text-destructive">*</span></Label>
+          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Leave Type <span className="text-destructive">*</span></Label>
           <Select value={form.leaveType} onValueChange={v => setForm(p => ({ ...p, leaveType: v as LeaveType }))}>
-            <SelectTrigger className={errors.leaveType ? 'border-destructive' : ''}><SelectValue placeholder="Select type" /></SelectTrigger>
+            <SelectTrigger className={`mt-1.5 rounded-xl h-10 ${errors.leaveType ? 'border-destructive' : ''}`}><SelectValue placeholder="Select type" /></SelectTrigger>
             <SelectContent>
               {leaveTypes.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
             </SelectContent>
@@ -99,32 +99,32 @@ export default function LeaveForm() {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>From Date (DD/MM/YYYY) <span className="text-destructive">*</span></Label>
-            <Input value={form.fromDate} onChange={e => setForm(p => ({ ...p, fromDate: e.target.value }))} placeholder="DD/MM/YYYY" className={errors.fromDate ? 'border-destructive' : ''} />
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">From Date (DD/MM/YYYY) <span className="text-destructive">*</span></Label>
+            <Input value={form.fromDate} onChange={e => setForm(p => ({ ...p, fromDate: e.target.value }))} placeholder="DD/MM/YYYY" className={`mt-1.5 rounded-xl h-10 ${errors.fromDate ? 'border-destructive' : ''}`} />
             {errors.fromDate && <p className="text-xs text-destructive mt-1">{errors.fromDate}</p>}
           </div>
           <div>
-            <Label>To Date (DD/MM/YYYY) <span className="text-destructive">*</span></Label>
-            <Input value={form.toDate} onChange={e => setForm(p => ({ ...p, toDate: e.target.value }))} placeholder="DD/MM/YYYY" className={errors.toDate ? 'border-destructive' : ''} />
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">To Date (DD/MM/YYYY) <span className="text-destructive">*</span></Label>
+            <Input value={form.toDate} onChange={e => setForm(p => ({ ...p, toDate: e.target.value }))} placeholder="DD/MM/YYYY" className={`mt-1.5 rounded-xl h-10 ${errors.toDate ? 'border-destructive' : ''}`} />
             {errors.toDate && <p className="text-xs text-destructive mt-1">{errors.toDate}</p>}
           </div>
         </div>
 
         {calcDays() > 0 && (
-          <div className="bg-muted rounded-md p-3 text-sm">
-            <strong>Total Days:</strong> {calcDays()}
+          <div className="glass-card rounded-xl p-3 text-sm flex items-center gap-2">
+            <span className="font-bold text-primary">{calcDays()}</span> day(s) requested
           </div>
         )}
 
         <div>
-          <Label>Reason <span className="text-destructive">*</span></Label>
-          <Textarea value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))} placeholder="Enter reason for leave..." className={errors.reason ? 'border-destructive' : ''} />
+          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Reason <span className="text-destructive">*</span></Label>
+          <Textarea value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))} placeholder="Enter reason for leave..." className={`mt-1.5 rounded-xl ${errors.reason ? 'border-destructive' : ''}`} />
           {errors.reason && <p className="text-xs text-destructive mt-1">{errors.reason}</p>}
         </div>
 
         <div className="flex gap-3 pt-2">
-          <Button type="submit">Submit Request</Button>
-          <Button type="button" variant="outline" onClick={() => navigate('/leaves')}>Cancel</Button>
+          <Button type="submit" className="rounded-xl shadow-md shadow-primary/20">Submit Request</Button>
+          <Button type="button" variant="outline" onClick={() => navigate('/leaves')} className="rounded-xl">Cancel</Button>
         </div>
       </form>
     </div>
