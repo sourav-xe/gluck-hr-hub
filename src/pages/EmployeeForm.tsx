@@ -67,23 +67,20 @@ export default function EmployeeForm() {
     if (!validate()) return;
 
     if (!isEdit) {
-      // Create auth user for new employee
       setCreatingUser(true);
       try {
-        const { data, error } = await supabase.auth.signUp({
-          email: form.email!,
-          password: loginPassword,
-          options: {
-            data: {
-              full_name: form.fullName,
-              app_role: portalRole,
-              employee_id: form.id || undefined,
-            },
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await supabase.functions.invoke('create-employee-user', {
+          body: {
+            email: form.email,
+            password: loginPassword,
+            full_name: form.fullName,
+            app_role: portalRole,
           },
         });
 
-        if (error) {
-          toast({ title: 'Failed to create portal account', description: error.message, variant: 'destructive' });
+        if (res.error || res.data?.error) {
+          toast({ title: 'Failed to create portal account', description: res.data?.error || res.error?.message, variant: 'destructive' });
           setCreatingUser(false);
           return;
         }
