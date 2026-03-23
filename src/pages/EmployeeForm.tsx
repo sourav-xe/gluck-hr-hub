@@ -104,6 +104,23 @@ export default function EmployeeForm() {
             password: loginPassword,
             full_name: form.fullName,
             app_role: portalRole,
+            employee_data: {
+              phone: form.phone,
+              type: form.type,
+              department: form.department,
+              job_title: form.jobTitle,
+              joining_date: form.joiningDate,
+              date_of_birth: form.dateOfBirth,
+              salary_type: form.salaryType,
+              salary_amount: form.salaryAmount,
+              bank_name: form.bankName,
+              account_number: form.accountNumber,
+              account_holder_name: form.accountHolderName,
+              address: form.address,
+              nationality: form.nationality,
+              passport_number: form.passportNumber,
+              status: form.status,
+            },
           },
         });
 
