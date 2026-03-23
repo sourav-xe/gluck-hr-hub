@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface StatCardProps {
   title: string;
@@ -7,11 +8,18 @@ interface StatCardProps {
   subtitle?: string;
   trend?: { value: string; positive: boolean };
   gradient?: string;
+  href?: string;
 }
 
-export default function StatCard({ title, value, icon, subtitle, trend, gradient }: StatCardProps) {
+export default function StatCard({ title, value, icon, subtitle, trend, gradient, href }: StatCardProps) {
+  const navigate = useNavigate();
+
   return (
-    <div className="glass-card-hover rounded-2xl p-5 relative overflow-hidden">
+    <div
+      className={`glass-card-hover rounded-2xl p-5 relative overflow-hidden transition-all duration-200 ${href ? 'cursor-pointer hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]' : ''}`}
+      onClick={() => href && navigate(href)}
+      role={href ? 'link' : undefined}
+    >
       {gradient && (
         <div className={`absolute inset-0 opacity-[0.06] ${gradient}`} />
       )}
