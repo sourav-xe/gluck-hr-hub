@@ -275,5 +275,3 @@ export default function SettingsPage() {
   );
 }
 
-// Need Zap icon import
-import { Zap } from 'lucide-react';
