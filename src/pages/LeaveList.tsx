@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { employees, leaveRequests } from '@/data/mockData';
+import { useAuth } from '@/contexts/AuthContext';
 import PageHeader from '@/components/shared/PageHeader';
 import StatusBadge from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
@@ -9,20 +10,44 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus } from 'lucide-react';
+import { Plus, UserCheck, ShieldCheck } from 'lucide-react';
+import { LeaveRequest } from '@/types/hr';
 
 export default function LeaveList() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, hasAccess } = useAuth();
   const [statusFilter, setStatusFilter] = useState('all');
   const [actionDialog, setActionDialog] = useState<{ id: string; action: 'approve' | 'reject' } | null>(null);
   const [note, setNote] = useState('');
+  const [localLeaves, setLocalLeaves] = useState<LeaveRequest[]>(leaveRequests);
 
-  const filtered = leaveRequests.filter(l => statusFilter === 'all' || l.status === statusFilter);
+  const isAdmin = hasAccess(['super_admin', 'hr_manager', 'reporting_manager']);
+
+  // Employees only see their own requests
+  const visibleLeaves = isAdmin
+    ? localLeaves
+    : localLeaves.filter(l => l.employeeId === user.employeeId);
+
+  const filtered = visibleLeaves.filter(l => statusFilter === 'all' || l.status === statusFilter);
+
+  const getRoleName = () => {
+    switch (user.role) {
+      case 'super_admin': return 'Super Admin';
+      case 'hr_manager': return 'HR Manager';
+      case 'reporting_manager': return 'Manager';
+      default: return '';
+    }
+  };
 
   const handleAction = () => {
     if (!actionDialog) return;
     const action = actionDialog.action === 'approve' ? 'Approved' : 'Rejected';
+    setLocalLeaves(prev => prev.map(l =>
+      l.id === actionDialog.id
+        ? { ...l, status: action as 'Approved' | 'Rejected', note: note || l.note, approvedBy: user.id, approvedByName: `${user.name} (${getRoleName()})` }
+        : l
+    ));
     toast({ title: `${actionDialog.action === 'approve' ? '✅' : '❌'} Leave ${action}`, description: `Leave request has been ${action.toLowerCase()}.` });
     setActionDialog(null);
     setNote('');
@@ -31,8 +56,8 @@ export default function LeaveList() {
   return (
     <div className="animate-fade-in">
       <PageHeader
-        title="Leave Management"
-        description={`${leaveRequests.length} total requests`}
+        title={isAdmin ? 'Leave Management' : 'My Leave Requests'}
+        description={isAdmin ? `${visibleLeaves.length} total requests` : `You have ${visibleLeaves.length} leave requests`}
         action={<Button onClick={() => navigate('/leaves/new')} className="gap-2 rounded-xl shadow-md shadow-primary/20"><Plus className="w-4 h-4" /> New Request</Button>}
       />
 
@@ -52,40 +77,49 @@ export default function LeaveList() {
         <Table>
           <TableHeader>
             <TableRow className="border-border/50">
-              <TableHead>Employee</TableHead>
+              {isAdmin && <TableHead>Employee</TableHead>}
               <TableHead>Type</TableHead>
               <TableHead className="hidden sm:table-cell">Dates</TableHead>
               <TableHead>Days</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Action</TableHead>
+              <TableHead>{isAdmin ? 'Action' : 'Reviewed By'}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No leave requests found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={isAdmin ? 6 : 5} className="text-center py-12 text-muted-foreground">No leave requests found</TableCell></TableRow>
             ) : filtered.map(leave => {
               const emp = employees.find(e => e.id === leave.employeeId);
               return (
                 <TableRow key={leave.id} className="border-border/50">
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-[11px] font-bold">
-                        {emp?.fullName.split(' ').map(n => n[0]).join('')}
+                  {isAdmin && (
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-[11px] font-bold">
+                          {emp?.fullName.split(' ').map(n => n[0]).join('')}
+                        </div>
+                        <span className="font-semibold text-sm">{emp?.fullName}</span>
                       </div>
-                      <span className="font-semibold text-sm">{emp?.fullName}</span>
-                    </div>
-                  </TableCell>
+                    </TableCell>
+                  )}
                   <TableCell className="text-sm">{leave.leaveType}</TableCell>
-                  <TableCell className="text-sm hidden sm:table-cell font-mono text-muted-foreground">{leave.fromDate} - {leave.toDate}</TableCell>
+                  <TableCell className="text-sm hidden sm:table-cell font-mono text-muted-foreground">{leave.fromDate} — {leave.toDate}</TableCell>
                   <TableCell className="text-sm font-bold">{leave.days}</TableCell>
                   <TableCell><StatusBadge status={leave.status} /></TableCell>
                   <TableCell>
-                    {leave.status === 'Pending' && (
+                    {isAdmin && leave.status === 'Pending' ? (
                       <div className="flex gap-1">
                         <Button size="sm" variant="outline" className="h-7 text-xs rounded-lg text-success border-success/20 hover:bg-success/10" onClick={() => setActionDialog({ id: leave.id, action: 'approve' })}>Approve</Button>
                         <Button size="sm" variant="outline" className="h-7 text-xs rounded-lg text-destructive border-destructive/20 hover:bg-destructive/10" onClick={() => setActionDialog({ id: leave.id, action: 'reject' })}>Reject</Button>
                       </div>
-                    )}
+                    ) : leave.approvedByName ? (
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">{leave.approvedByName}</span>
+                      </div>
+                    ) : leave.status === 'Pending' ? (
+                      <span className="text-xs text-warning font-medium">Awaiting review</span>
+                    ) : null}
                   </TableCell>
                 </TableRow>
               );

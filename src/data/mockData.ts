@@ -105,11 +105,11 @@ export const attendanceRecords: AttendanceRecord[] = generateAttendance();
 export const clockRecords: ClockRecord[] = [];
 
 export const leaveRequests: LeaveRequest[] = [
-  { id: 'L1', employeeId: '2', leaveType: 'Annual', fromDate: '10/03/2025', toDate: '12/03/2025', days: 3, reason: 'Family vacation', status: 'Approved', createdAt: '05/03/2025' },
-  { id: 'L2', employeeId: '4', leaveType: 'Sick', fromDate: '18/02/2025', toDate: '19/02/2025', days: 2, reason: 'Medical appointment', status: 'Approved', createdAt: '17/02/2025' },
+  { id: 'L1', employeeId: '2', leaveType: 'Annual', fromDate: '10/03/2025', toDate: '12/03/2025', days: 3, reason: 'Family vacation', status: 'Approved', approvedBy: 'u1', approvedByName: 'Admin User (Super Admin)', createdAt: '05/03/2025' },
+  { id: 'L2', employeeId: '4', leaveType: 'Sick', fromDate: '18/02/2025', toDate: '19/02/2025', days: 2, reason: 'Medical appointment', status: 'Approved', approvedBy: 'u2', approvedByName: 'Ashan Perera (HR Manager)', createdAt: '17/02/2025' },
   { id: 'L3', employeeId: '1', leaveType: 'Casual', fromDate: '25/03/2025', toDate: '25/03/2025', days: 1, reason: 'Personal matters', status: 'Pending', createdAt: '20/03/2025' },
   { id: 'L4', employeeId: '5', leaveType: 'Annual', fromDate: '01/04/2025', toDate: '03/04/2025', days: 3, reason: 'Travel plans', status: 'Pending', createdAt: '22/03/2025' },
-  { id: 'L5', employeeId: '2', leaveType: 'Unpaid', fromDate: '15/01/2025', toDate: '17/01/2025', days: 3, reason: 'Extended personal leave', status: 'Rejected', note: 'Insufficient notice period', createdAt: '10/01/2025' },
+  { id: 'L5', employeeId: '2', leaveType: 'Unpaid', fromDate: '15/01/2025', toDate: '17/01/2025', days: 3, reason: 'Extended personal leave', status: 'Rejected', approvedBy: 'u2', approvedByName: 'Ashan Perera (HR Manager)', note: 'Insufficient notice period', createdAt: '10/01/2025' },
 ];
 
 export const leaveBalances: LeaveBalance[] = [

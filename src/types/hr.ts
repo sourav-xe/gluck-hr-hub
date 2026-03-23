@@ -73,6 +73,8 @@ export interface LeaveRequest {
   reason: string;
   status: LeaveStatus;
   note?: string;
+  approvedBy?: string;
+  approvedByName?: string;
   createdAt: string;
 }
 
