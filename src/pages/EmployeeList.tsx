@@ -107,6 +107,18 @@ export default function EmployeeList() {
                   <TableCell className="hidden sm:table-cell"><StatusBadge status={emp.type} /></TableCell>
                   <TableCell className="text-sm hidden lg:table-cell font-mono text-muted-foreground">{emp.joiningDate}</TableCell>
                   <TableCell><StatusBadge status={emp.status} /></TableCell>
+                  {canEdit && (
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-lg"
+                        onClick={(e) => { e.stopPropagation(); navigate(`/employees/${emp.id}/edit`); }}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             )}
