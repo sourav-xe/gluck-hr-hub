@@ -82,6 +82,7 @@ export default function EmployeeList() {
               <TableHead className="hidden sm:table-cell">Type</TableHead>
               <TableHead className="hidden lg:table-cell">Joining Date</TableHead>
               <TableHead>Status</TableHead>
+              {canEdit && <TableHead className="w-12">Edit</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
