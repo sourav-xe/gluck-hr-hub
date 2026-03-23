@@ -1,6 +1,6 @@
 import {
   Employee, AttendanceRecord, LeaveRequest, LeaveBalance,
-  PayrollRecord, GeneratedDocument, Automation, AttendanceStatus
+  PayrollRecord, GeneratedDocument, Automation, AttendanceStatus, ClockRecord, AttendanceSettings
 } from '@/types/hr';
 
 export const employees: Employee[] = [
@@ -46,14 +46,21 @@ export const employees: Employee[] = [
   },
 ];
 
-// Generate 3 months of attendance data
+export const defaultAttendanceSettings: AttendanceSettings = {
+  ipRestrictionEnabled: false,
+  allowedIPs: ['192.168.1.0/24'],
+  autoMarkAbsent: true,
+  halfDayThresholdHours: 4,
+  fullDayThresholdHours: 8,
+};
+
 function generateAttendance(): AttendanceRecord[] {
   const records: AttendanceRecord[] = [];
   const statuses: AttendanceStatus[] = ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'L', 'WFH', 'HD', 'A', 'P', 'P'];
   const months = [
-    { year: 2025, month: 0 }, // Jan
-    { year: 2025, month: 1 }, // Feb
-    { year: 2025, month: 2 }, // Mar
+    { year: 2025, month: 0 },
+    { year: 2025, month: 1 },
+    { year: 2025, month: 2 },
   ];
 
   employees.forEach(emp => {
@@ -61,12 +68,31 @@ function generateAttendance(): AttendanceRecord[] {
       const daysInMonth = new Date(year, month + 1, 0).getDate();
       for (let day = 1; day <= daysInMonth; day++) {
         const date = new Date(year, month, day);
-        if (date.getDay() === 0 || date.getDay() === 6) continue; // skip weekends
+        if (date.getDay() === 0 || date.getDay() === 6) continue;
         const status = statuses[Math.floor(Math.random() * statuses.length)];
+        const clockIn = status === 'P' || status === 'WFH' || status === 'HD' 
+          ? `0${8 + Math.floor(Math.random() * 2)}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}` 
+          : undefined;
+        const clockOut = clockIn 
+          ? status === 'HD' 
+            ? `1${2 + Math.floor(Math.random() * 2)}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}`
+            : `1${7 + Math.floor(Math.random() * 2)}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}`
+          : undefined;
+        
+        let totalHours: number | undefined;
+        if (clockIn && clockOut) {
+          const [inH, inM] = clockIn.split(':').map(Number);
+          const [outH, outM] = clockOut.split(':').map(Number);
+          totalHours = Math.round(((outH * 60 + outM) - (inH * 60 + inM)) / 60 * 10) / 10;
+        }
+
         records.push({
           employeeId: emp.id,
           date: `${String(day).padStart(2, '0')}/${String(month + 1).padStart(2, '0')}/${year}`,
           status,
+          clockIn,
+          clockOut,
+          totalHours,
         });
       }
     });
@@ -75,6 +101,8 @@ function generateAttendance(): AttendanceRecord[] {
 }
 
 export const attendanceRecords: AttendanceRecord[] = generateAttendance();
+
+export const clockRecords: ClockRecord[] = [];
 
 export const leaveRequests: LeaveRequest[] = [
   { id: 'L1', employeeId: '2', leaveType: 'Annual', fromDate: '10/03/2025', toDate: '12/03/2025', days: 3, reason: 'Family vacation', status: 'Approved', createdAt: '05/03/2025' },
