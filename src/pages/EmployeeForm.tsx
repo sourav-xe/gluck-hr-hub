@@ -22,6 +22,36 @@ const roleOptions: { value: UserRole; label: string }[] = [
   { value: 'freelancer_intern', label: 'Freelancer / Intern' },
 ];
 
+interface FormFieldProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  required?: boolean;
+  disabled?: boolean;
+  error?: string;
+  placeholder?: string;
+}
+
+function FormField({ label, value, onChange, type = 'text', required, disabled, error, placeholder }: FormFieldProps) {
+  return (
+    <div>
+      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {label} {required && <span className="text-destructive">*</span>}
+      </Label>
+      <Input
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className={`mt-1.5 rounded-xl h-10 ${error ? 'border-destructive' : ''}`}
+        disabled={disabled}
+        placeholder={placeholder}
+      />
+      {error && <p className="text-xs text-destructive mt-1">{error}</p>}
+    </div>
+  );
+}
+
 export default function EmployeeForm() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -37,7 +67,6 @@ export default function EmployeeForm() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Login credentials for new employee
   const [loginPassword, setLoginPassword] = useState('');
   const [portalRole, setPortalRole] = useState<UserRole>('employee');
   const [creatingUser, setCreatingUser] = useState(false);
@@ -69,7 +98,6 @@ export default function EmployeeForm() {
     if (!isEdit) {
       setCreatingUser(true);
       try {
-        const { data: { session } } = await supabase.auth.getSession();
         const res = await supabase.functions.invoke('create-employee-user', {
           body: {
             email: form.email,
@@ -105,19 +133,7 @@ export default function EmployeeForm() {
     navigate('/employees');
   };
 
-  const Field = ({ label, name, type = 'text', required, disabled }: { label: string; name: keyof Employee; type?: string; required?: boolean; disabled?: boolean }) => (
-    <div>
-      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label} {required && <span className="text-destructive">*</span>}</Label>
-      <Input
-        type={type}
-        value={(form[name] as string) || ''}
-        onChange={e => set(name, type === 'number' ? Number(e.target.value) : e.target.value)}
-        className={`mt-1.5 rounded-xl h-10 ${errors[name] ? 'border-destructive' : ''}`}
-        disabled={disabled || (isEdit && !canEdit)}
-      />
-      {errors[name] && <p className="text-xs text-destructive mt-1">{errors[name]}</p>}
-    </div>
-  );
+  const fieldDisabled = isEdit && !canEdit;
 
   return (
     <div className="animate-fade-in max-w-4xl">
@@ -128,15 +144,15 @@ export default function EmployeeForm() {
       <form onSubmit={handleSubmit} className="glass-card rounded-2xl p-6 space-y-6">
         <h3 className="font-bold text-xs text-muted-foreground uppercase tracking-widest">Personal Information</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Field label="Full Name" name="fullName" required />
-          <Field label="Email" name="email" type="email" required />
-          <Field label="Phone" name="phone" required />
+          <FormField label="Full Name" value={(form.fullName as string) || ''} onChange={v => set('fullName', v)} required disabled={fieldDisabled} error={errors.fullName} />
+          <FormField label="Email" value={(form.email as string) || ''} onChange={v => set('email', v)} type="email" required disabled={fieldDisabled} error={errors.email} />
+          <FormField label="Phone" value={(form.phone as string) || ''} onChange={v => set('phone', v)} required disabled={fieldDisabled} error={errors.phone} />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Type <span className="text-destructive">*</span></Label>
-            <Select value={form.type} onValueChange={v => set('type', v as EmployeeType)} disabled={isEdit && !canEdit}>
+            <Select value={form.type} onValueChange={v => set('type', v as EmployeeType)} disabled={fieldDisabled}>
               <SelectTrigger className="mt-1.5 rounded-xl h-10"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="Full Time">Full Time</SelectItem>
@@ -147,7 +163,7 @@ export default function EmployeeForm() {
           </div>
           <div>
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Department <span className="text-destructive">*</span></Label>
-            <Select value={form.department} onValueChange={v => set('department', v)} disabled={isEdit && !canEdit}>
+            <Select value={form.department} onValueChange={v => set('department', v)} disabled={fieldDisabled}>
               <SelectTrigger className={`mt-1.5 rounded-xl h-10 ${errors.department ? 'border-destructive' : ''}`}><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>
                 {departments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
@@ -155,28 +171,28 @@ export default function EmployeeForm() {
             </Select>
             {errors.department && <p className="text-xs text-destructive mt-1">{errors.department}</p>}
           </div>
-          <Field label="Job Title" name="jobTitle" required />
+          <FormField label="Job Title" value={(form.jobTitle as string) || ''} onChange={v => set('jobTitle', v)} required disabled={fieldDisabled} error={errors.jobTitle} />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Reporting Manager</Label>
-            <Select value={form.reportingManagerId || ''} onValueChange={v => set('reportingManagerId', v)} disabled={isEdit && !canEdit}>
+            <Select value={form.reportingManagerId || ''} onValueChange={v => set('reportingManagerId', v)} disabled={fieldDisabled}>
               <SelectTrigger className="mt-1.5 rounded-xl h-10"><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>
                 {employees.filter(e => e.id !== id).map(e => <SelectItem key={e.id} value={e.id}>{e.fullName}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
-          <Field label="Joining Date" name="joiningDate" required />
-          <Field label="Date of Birth" name="dateOfBirth" />
+          <FormField label="Joining Date" value={(form.joiningDate as string) || ''} onChange={v => set('joiningDate', v)} required disabled={fieldDisabled} error={errors.joiningDate} />
+          <FormField label="Date of Birth" value={(form.dateOfBirth as string) || ''} onChange={v => set('dateOfBirth', v)} disabled={fieldDisabled} />
         </div>
 
         <h3 className="font-bold text-xs text-muted-foreground uppercase tracking-widest pt-2">Salary Details</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Salary Type</Label>
-            <Select value={form.salaryType} onValueChange={v => set('salaryType', v as SalaryType)} disabled={isEdit && !canEdit}>
+            <Select value={form.salaryType} onValueChange={v => set('salaryType', v as SalaryType)} disabled={fieldDisabled}>
               <SelectTrigger className="mt-1.5 rounded-xl h-10"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="Fixed Monthly">Fixed Monthly</SelectItem>
@@ -185,10 +201,10 @@ export default function EmployeeForm() {
               </SelectContent>
             </Select>
           </div>
-          <Field label="Amount/Rate (LKR)" name="salaryAmount" type="number" required />
+          <FormField label="Amount/Rate (LKR)" value={String(form.salaryAmount || '')} onChange={v => set('salaryAmount', Number(v))} type="number" required disabled={fieldDisabled} error={errors.salaryAmount} />
           <div>
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</Label>
-            <Select value={form.status} onValueChange={v => set('status', v as EmployeeStatus)} disabled={isEdit && !canEdit}>
+            <Select value={form.status} onValueChange={v => set('status', v as EmployeeStatus)} disabled={fieldDisabled}>
               <SelectTrigger className="mt-1.5 rounded-xl h-10"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="Active">Active</SelectItem>
@@ -201,19 +217,18 @@ export default function EmployeeForm() {
 
         <h3 className="font-bold text-xs text-muted-foreground uppercase tracking-widest pt-2">Bank Details</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Field label="Bank Name" name="bankName" />
-          <Field label="Account Number" name="accountNumber" />
-          <Field label="Account Holder Name" name="accountHolderName" />
+          <FormField label="Bank Name" value={(form.bankName as string) || ''} onChange={v => set('bankName', v)} disabled={fieldDisabled} />
+          <FormField label="Account Number" value={(form.accountNumber as string) || ''} onChange={v => set('accountNumber', v)} disabled={fieldDisabled} />
+          <FormField label="Account Holder Name" value={(form.accountHolderName as string) || ''} onChange={v => set('accountHolderName', v)} disabled={fieldDisabled} />
         </div>
 
         <h3 className="font-bold text-xs text-muted-foreground uppercase tracking-widest pt-2">Additional Details</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Field label="Address" name="address" />
-          <Field label="Nationality" name="nationality" />
-          <Field label="Passport Number" name="passportNumber" />
+          <FormField label="Address" value={(form.address as string) || ''} onChange={v => set('address', v)} disabled={fieldDisabled} />
+          <FormField label="Nationality" value={(form.nationality as string) || ''} onChange={v => set('nationality', v)} disabled={fieldDisabled} />
+          <FormField label="Passport Number" value={(form.passportNumber as string) || ''} onChange={v => set('passportNumber', v)} disabled={fieldDisabled} />
         </div>
 
-        {/* Portal Access - only for new employees */}
         {!isEdit && (
           <>
             <h3 className="font-bold text-xs text-muted-foreground uppercase tracking-widest pt-2 flex items-center gap-2">
