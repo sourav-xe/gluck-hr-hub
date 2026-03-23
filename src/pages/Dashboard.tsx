@@ -29,12 +29,12 @@ export default function Dashboard() {
       <PageHeader title="Dashboard" description="Welcome back! Here's your HR overview." />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <StatCard title="Active Employees" value={activeEmployees} icon={<Users className="w-5 h-5" />} gradient="bg-gradient-to-br from-primary to-info" href="/employees" />
-        <StatCard title="On Leave Today" value={todayAttendance.filter(a => a.status === 'L').length} icon={<CalendarOff className="w-5 h-5" />} gradient="bg-gradient-to-br from-destructive to-warning" href="/leaves" />
-        <StatCard title="Attendance %" value={`${attendancePct}%`} icon={<CalendarCheck className="w-5 h-5" />} subtitle="This month" gradient="bg-gradient-to-br from-success to-info" href="/attendance" />
-        <StatCard title="Payroll Due" value={`LKR ${totalPayrollDue.toLocaleString()}`} icon={<DollarSign className="w-5 h-5" />} gradient="bg-gradient-to-br from-accent to-warning" href="/payroll" />
-        <StatCard title="Pending Leaves" value={pendingLeaves.length} icon={<Clock className="w-5 h-5" />} gradient="bg-gradient-to-br from-warning to-accent" href="/leaves" />
-        <StatCard title="Documents" value={3} icon={<FileText className="w-5 h-5" />} subtitle="This month" gradient="bg-gradient-to-br from-info to-primary" href="/documents" />
+        <StatCard index={0} title="Active Employees" value={activeEmployees} icon={<Users className="w-5 h-5" />} gradient="bg-gradient-to-br from-primary to-info" glowColor="hsl(210 65% 55% / 0.25)" href="/employees" />
+        <StatCard index={1} title="On Leave Today" value={todayAttendance.filter(a => a.status === 'L').length} icon={<CalendarOff className="w-5 h-5" />} gradient="bg-gradient-to-br from-destructive to-warning" glowColor="hsl(0 84% 60% / 0.25)" href="/leaves" />
+        <StatCard index={2} title="Attendance %" value={`${attendancePct}%`} icon={<CalendarCheck className="w-5 h-5" />} subtitle="This month" gradient="bg-gradient-to-br from-success to-info" glowColor="hsl(152 69% 40% / 0.25)" href="/attendance" />
+        <StatCard index={3} title="Payroll Due" value={`LKR ${totalPayrollDue.toLocaleString()}`} icon={<DollarSign className="w-5 h-5" />} gradient="bg-gradient-to-br from-accent to-warning" glowColor="hsl(38 92% 55% / 0.25)" href="/payroll" />
+        <StatCard index={4} title="Pending Leaves" value={pendingLeaves.length} icon={<Clock className="w-5 h-5" />} gradient="bg-gradient-to-br from-warning to-accent" glowColor="hsl(38 92% 50% / 0.25)" href="/leaves" />
+        <StatCard index={5} title="Documents" value={3} icon={<FileText className="w-5 h-5" />} subtitle="This month" gradient="bg-gradient-to-br from-info to-primary" glowColor="hsl(199 89% 48% / 0.25)" href="/documents" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
