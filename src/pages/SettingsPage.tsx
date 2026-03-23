@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { defaultAttendanceSettings } from '@/data/mockData';
+import { AttendanceSettings } from '@/types/hr';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { Bell, Mail, MessageSquare, Save, Zap } from 'lucide-react';
+import { Bell, Mail, MessageSquare, Save, Zap, Shield, Wifi, Plus, X, Clock } from 'lucide-react';
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -21,6 +23,9 @@ export default function SettingsPage() {
   });
 
   const [leavePolicy, setLeavePolicy] = useState({ annual: 14, sick: 7, casual: 5 });
+
+  const [attendanceSettings, setAttendanceSettings] = useState<AttendanceSettings>({ ...defaultAttendanceSettings });
+  const [newIP, setNewIP] = useState('');
 
   const [notifications, setNotifications] = useState({
     inAppToasts: true,
@@ -45,7 +50,7 @@ export default function SettingsPage() {
 
   const requestBrowserPermission = async () => {
     if (!('Notification' in window)) {
-      toast({ title: 'Not supported', description: 'Browser notifications are not supported.' , variant: 'destructive' });
+      toast({ title: 'Not supported', description: 'Browser notifications are not supported.', variant: 'destructive' });
       return;
     }
     const perm = await Notification.requestPermission();
@@ -74,8 +79,15 @@ export default function SettingsPage() {
     }
   };
 
-  const saveNotificationSettings = () => {
-    toast({ title: '✅ Settings saved', description: 'Notification preferences updated successfully.' });
+  const addIP = () => {
+    if (newIP && !attendanceSettings.allowedIPs.includes(newIP)) {
+      setAttendanceSettings(p => ({ ...p, allowedIPs: [...p.allowedIPs, newIP] }));
+      setNewIP('');
+    }
+  };
+
+  const removeIP = (ip: string) => {
+    setAttendanceSettings(p => ({ ...p, allowedIPs: p.allowedIPs.filter(i => i !== ip) }));
   };
 
   return (
@@ -83,10 +95,11 @@ export default function SettingsPage() {
       <PageHeader title="Settings" description="Configure system settings" />
 
       <Tabs defaultValue="company" className="space-y-4">
-        <TabsList className="rounded-xl bg-muted/50 p-1">
-          <TabsTrigger value="company" className="rounded-lg text-xs font-semibold">Company Profile</TabsTrigger>
+        <TabsList className="rounded-xl bg-muted/50 p-1 flex-wrap h-auto">
+          <TabsTrigger value="company" className="rounded-lg text-xs font-semibold">Company</TabsTrigger>
           <TabsTrigger value="leave" className="rounded-lg text-xs font-semibold">Leave Policy</TabsTrigger>
-          <TabsTrigger value="salary" className="rounded-lg text-xs font-semibold">Salary Settings</TabsTrigger>
+          <TabsTrigger value="salary" className="rounded-lg text-xs font-semibold">Salary</TabsTrigger>
+          <TabsTrigger value="attendance" className="rounded-lg text-xs font-semibold">Attendance</TabsTrigger>
           <TabsTrigger value="notifications" className="rounded-lg text-xs font-semibold">Notifications</TabsTrigger>
         </TabsList>
 
@@ -114,7 +127,7 @@ export default function SettingsPage() {
               <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Logo Upload</Label>
               <Input type="file" accept="image/*" className="mt-1.5 rounded-xl" />
             </div>
-            <Button onClick={() => toast({ title: '✅ Settings saved', description: 'Company profile updated successfully.' })} className="rounded-xl gap-2">
+            <Button onClick={() => toast({ title: '✅ Saved', description: 'Company profile updated.' })} className="rounded-xl gap-2">
               <Save className="w-4 h-4" /> Save Changes
             </Button>
           </div>
@@ -133,7 +146,7 @@ export default function SettingsPage() {
                 <Input type="number" value={leavePolicy[key]} onChange={e => setLeavePolicy(p => ({ ...p, [key]: Number(e.target.value) }))} className="mt-1.5 rounded-xl h-10" />
               </div>
             ))}
-            <Button onClick={() => toast({ title: '✅ Policy saved', description: 'Leave policy updated successfully.' })} className="rounded-xl gap-2">
+            <Button onClick={() => toast({ title: '✅ Policy saved', description: 'Leave policy updated.' })} className="rounded-xl gap-2">
               <Save className="w-4 h-4" /> Save Policy
             </Button>
           </div>
@@ -162,9 +175,100 @@ export default function SettingsPage() {
           </div>
         </TabsContent>
 
+        <TabsContent value="attendance">
+          <div className="space-y-6 max-w-2xl">
+            {/* IP Restriction */}
+            <div className="glass-card rounded-2xl p-6">
+              <h3 className="font-bold text-sm mb-5 flex items-center gap-2"><Shield className="w-4 h-4 text-primary" /> IP-Based Location Restriction</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
+                  <div className="flex items-center gap-3">
+                    <Wifi className="w-4 h-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-semibold">Enable IP Restriction</p>
+                      <p className="text-xs text-muted-foreground">Employees can only clock in from approved IP addresses/ranges</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={attendanceSettings.ipRestrictionEnabled}
+                    onCheckedChange={v => setAttendanceSettings(p => ({ ...p, ipRestrictionEnabled: v }))}
+                  />
+                </div>
+
+                {attendanceSettings.ipRestrictionEnabled && (
+                  <div className="space-y-3 pl-1">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Allowed IP Addresses / Ranges</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={newIP}
+                        onChange={e => setNewIP(e.target.value)}
+                        placeholder="e.g. 192.168.1.0/24 or 10.0.0.1"
+                        className="rounded-xl h-9 text-sm"
+                      />
+                      <Button size="sm" onClick={addIP} className="rounded-xl h-9 gap-1">
+                        <Plus className="w-3 h-3" /> Add
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {attendanceSettings.allowedIPs.map(ip => (
+                        <div key={ip} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-mono">
+                          {ip}
+                          <button onClick={() => removeIP(ip)} className="hover:text-destructive transition-colors">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Clock Settings */}
+            <div className="glass-card rounded-2xl p-6">
+              <h3 className="font-bold text-sm mb-5 flex items-center gap-2"><Clock className="w-4 h-4 text-accent" /> Clock-In/Out Rules</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
+                  <div>
+                    <p className="text-sm font-semibold">Auto-mark Absent</p>
+                    <p className="text-xs text-muted-foreground">Mark employees as absent if not clocked in by end of day</p>
+                  </div>
+                  <Switch
+                    checked={attendanceSettings.autoMarkAbsent}
+                    onCheckedChange={v => setAttendanceSettings(p => ({ ...p, autoMarkAbsent: v }))}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Half Day Threshold (hours)</Label>
+                    <Input
+                      type="number"
+                      value={attendanceSettings.halfDayThresholdHours}
+                      onChange={e => setAttendanceSettings(p => ({ ...p, halfDayThresholdHours: Number(e.target.value) }))}
+                      className="mt-1.5 rounded-xl h-10"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Full Day Threshold (hours)</Label>
+                    <Input
+                      type="number"
+                      value={attendanceSettings.fullDayThresholdHours}
+                      onChange={e => setAttendanceSettings(p => ({ ...p, fullDayThresholdHours: Number(e.target.value) }))}
+                      className="mt-1.5 rounded-xl h-10"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <Button onClick={() => toast({ title: '✅ Saved', description: 'Attendance settings updated.' })} className="rounded-xl gap-2">
+              <Save className="w-4 h-4" /> Save Attendance Settings
+            </Button>
+          </div>
+        </TabsContent>
+
         <TabsContent value="notifications">
           <div className="space-y-6 max-w-3xl">
-            {/* Notification Channels */}
             <div className="glass-card rounded-2xl p-6">
               <h3 className="font-bold text-sm mb-5 flex items-center gap-2"><Bell className="w-4 h-4 text-primary" /> Notification Channels</h3>
               <div className="space-y-4">
@@ -204,7 +308,7 @@ export default function SettingsPage() {
                     <Mail className="w-4 h-4 text-muted-foreground" />
                     <div>
                       <p className="text-sm font-semibold">Email Notifications</p>
-                      <p className="text-xs text-muted-foreground">Send email notifications (requires backend)</p>
+                      <p className="text-xs text-muted-foreground">Send email notifications (powered by Lovable Cloud)</p>
                     </div>
                   </div>
                   <Switch checked={notifications.emailNotifications} onCheckedChange={v => setNotifications(p => ({ ...p, emailNotifications: v }))} />
@@ -212,7 +316,6 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Notification Triggers */}
             <div className="glass-card rounded-2xl p-6">
               <h3 className="font-bold text-sm mb-5 flex items-center gap-2"><Zap className="w-4 h-4 text-accent" /> Notification Triggers</h3>
               <div className="space-y-3">
@@ -239,7 +342,6 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Email Templates */}
             <div className="glass-card rounded-2xl p-6">
               <h3 className="font-bold text-sm mb-5 flex items-center gap-2"><Mail className="w-4 h-4 text-info" /> Email Templates</h3>
               <div className="space-y-5">
@@ -263,7 +365,7 @@ export default function SettingsPage() {
                 ))}
               </div>
               <div className="flex gap-2 mt-5">
-                <Button onClick={saveNotificationSettings} className="rounded-xl gap-2">
+                <Button onClick={() => toast({ title: '✅ Saved', description: 'Notification settings saved.' })} className="rounded-xl gap-2">
                   <Save className="w-4 h-4" /> Save All Settings
                 </Button>
               </div>
@@ -274,4 +376,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-

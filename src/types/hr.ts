@@ -35,10 +35,32 @@ export interface Employee {
   avatar?: string;
 }
 
+export interface ClockRecord {
+  employeeId: string;
+  date: string;
+  clockIn?: string;
+  clockOut?: string;
+  ipAddress?: string;
+  status: AttendanceStatus;
+  totalHours?: number;
+}
+
 export interface AttendanceRecord {
   employeeId: string;
   date: string;
   status: AttendanceStatus;
+  clockIn?: string;
+  clockOut?: string;
+  ipAddress?: string;
+  totalHours?: number;
+}
+
+export interface AttendanceSettings {
+  ipRestrictionEnabled: boolean;
+  allowedIPs: string[];
+  autoMarkAbsent: boolean;
+  halfDayThresholdHours: number;
+  fullDayThresholdHours: number;
 }
 
 export interface LeaveRequest {
