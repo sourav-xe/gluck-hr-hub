@@ -29,12 +29,12 @@ export default function Dashboard() {
       <PageHeader title="Dashboard" description="Welcome back! Here's your HR overview." />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <StatCard title="Active Employees" value={activeEmployees} icon={<Users className="w-5 h-5" />} gradient="bg-gradient-to-br from-primary to-info" />
-        <StatCard title="On Leave Today" value={todayAttendance.filter(a => a.status === 'L').length} icon={<CalendarOff className="w-5 h-5" />} gradient="bg-gradient-to-br from-destructive to-warning" />
-        <StatCard title="Attendance %" value={`${attendancePct}%`} icon={<CalendarCheck className="w-5 h-5" />} subtitle="This month" gradient="bg-gradient-to-br from-success to-info" />
-        <StatCard title="Payroll Due" value={`LKR ${totalPayrollDue.toLocaleString()}`} icon={<DollarSign className="w-5 h-5" />} gradient="bg-gradient-to-br from-accent to-warning" />
-        <StatCard title="Pending Leaves" value={pendingLeaves.length} icon={<Clock className="w-5 h-5" />} gradient="bg-gradient-to-br from-warning to-accent" />
-        <StatCard title="Documents" value={3} icon={<FileText className="w-5 h-5" />} subtitle="This month" gradient="bg-gradient-to-br from-info to-primary" />
+        <StatCard title="Active Employees" value={activeEmployees} icon={<Users className="w-5 h-5" />} gradient="bg-gradient-to-br from-primary to-info" href="/employees" />
+        <StatCard title="On Leave Today" value={todayAttendance.filter(a => a.status === 'L').length} icon={<CalendarOff className="w-5 h-5" />} gradient="bg-gradient-to-br from-destructive to-warning" href="/leaves" />
+        <StatCard title="Attendance %" value={`${attendancePct}%`} icon={<CalendarCheck className="w-5 h-5" />} subtitle="This month" gradient="bg-gradient-to-br from-success to-info" href="/attendance" />
+        <StatCard title="Payroll Due" value={`LKR ${totalPayrollDue.toLocaleString()}`} icon={<DollarSign className="w-5 h-5" />} gradient="bg-gradient-to-br from-accent to-warning" href="/payroll" />
+        <StatCard title="Pending Leaves" value={pendingLeaves.length} icon={<Clock className="w-5 h-5" />} gradient="bg-gradient-to-br from-warning to-accent" href="/leaves" />
+        <StatCard title="Documents" value={3} icon={<FileText className="w-5 h-5" />} subtitle="This month" gradient="bg-gradient-to-br from-info to-primary" href="/documents" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
