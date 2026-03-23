@@ -14,6 +14,7 @@ export default function EmployeeList() {
   const navigate = useNavigate();
   const { hasAccess } = useAuth();
   const canEdit = hasAccess(['super_admin', 'hr_manager']);
+  const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
