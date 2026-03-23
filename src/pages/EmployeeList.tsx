@@ -34,25 +34,24 @@ export default function EmployeeList() {
         title="Employees"
         description={`${employees.length} total employees`}
         action={
-          <Button onClick={() => navigate('/employees/new')} className="gap-2">
+          <Button onClick={() => navigate('/employees/new')} className="gap-2 rounded-xl shadow-md shadow-primary/20">
             <Plus className="w-4 h-4" /> Add Employee
           </Button>
         }
       />
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+      <div className="flex flex-col sm:flex-row gap-3 mb-5">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Search by name or department..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="pl-9"
+            className="pl-9 rounded-xl h-10"
           />
         </div>
         <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Type" /></SelectTrigger>
+          <SelectTrigger className="w-40 rounded-xl h-10"><SelectValue placeholder="Type" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
             <SelectItem value="Full Time">Full Time</SelectItem>
@@ -61,7 +60,7 @@ export default function EmployeeList() {
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectTrigger className="w-40 rounded-xl h-10"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="Active">Active</SelectItem>
@@ -71,11 +70,10 @@ export default function EmployeeList() {
         </Select>
       </div>
 
-      {/* Table */}
-      <div className="bg-card rounded-lg border overflow-hidden">
+      <div className="glass-card rounded-2xl overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow className="border-border/50">
               <TableHead>Name</TableHead>
               <TableHead>Role</TableHead>
               <TableHead className="hidden md:table-cell">Department</TableHead>
@@ -86,25 +84,25 @@ export default function EmployeeList() {
           </TableHeader>
           <TableBody>
             {paginated.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No employees found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No employees found</TableCell></TableRow>
             ) : (
               paginated.map(emp => (
-                <TableRow key={emp.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/employees/${emp.id}`)}>
+                <TableRow key={emp.id} className="cursor-pointer hover:bg-muted/30 transition-colors border-border/50" onClick={() => navigate(`/employees/${emp.id}`)}>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-semibold">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-primary text-xs font-bold">
                         {emp.fullName.split(' ').map(n => n[0]).join('')}
                       </div>
                       <div>
-                        <p className="font-medium text-sm">{emp.fullName}</p>
-                        <p className="text-xs text-muted-foreground">{emp.email}</p>
+                        <p className="font-semibold text-sm">{emp.fullName}</p>
+                        <p className="text-[11px] text-muted-foreground">{emp.email}</p>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell className="text-sm">{emp.jobTitle}</TableCell>
                   <TableCell className="text-sm hidden md:table-cell">{emp.department}</TableCell>
                   <TableCell className="hidden sm:table-cell"><StatusBadge status={emp.type} /></TableCell>
-                  <TableCell className="text-sm hidden lg:table-cell">{emp.joiningDate}</TableCell>
+                  <TableCell className="text-sm hidden lg:table-cell font-mono text-muted-foreground">{emp.joiningDate}</TableCell>
                   <TableCell><StatusBadge status={emp.status} /></TableCell>
                 </TableRow>
               ))
@@ -112,11 +110,11 @@ export default function EmployeeList() {
           </TableBody>
         </Table>
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border/50">
             <p className="text-xs text-muted-foreground">Showing {(page - 1) * perPage + 1}-{Math.min(page * perPage, filtered.length)} of {filtered.length}</p>
             <div className="flex gap-1">
-              <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
-              <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage(p => p + 1)}>Next</Button>
+              <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(p => p - 1)} className="rounded-lg">Previous</Button>
+              <Button variant="outline" size="sm" disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="rounded-lg">Next</Button>
             </div>
           </div>
         )}
