@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Plus, Search, Pencil } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
+// Employee list component
 export default function EmployeeList() {
   const navigate = useNavigate();
   const { hasAccess } = useAuth();
