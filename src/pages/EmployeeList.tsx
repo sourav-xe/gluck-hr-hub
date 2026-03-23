@@ -7,10 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Pencil } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function EmployeeList() {
   const navigate = useNavigate();
+  const { hasAccess } = useAuth();
+  const canEdit = hasAccess(['super_admin', 'hr_manager']);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -80,11 +83,12 @@ export default function EmployeeList() {
               <TableHead className="hidden sm:table-cell">Type</TableHead>
               <TableHead className="hidden lg:table-cell">Joining Date</TableHead>
               <TableHead>Status</TableHead>
+              {canEdit && <TableHead className="w-12">Edit</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {paginated.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No employees found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={canEdit ? 7 : 6} className="text-center py-12 text-muted-foreground">No employees found</TableCell></TableRow>
             ) : (
               paginated.map(emp => (
                 <TableRow key={emp.id} className="cursor-pointer hover:bg-muted/30 transition-colors border-border/50" onClick={() => navigate(`/employees/${emp.id}`)}>
@@ -104,6 +108,18 @@ export default function EmployeeList() {
                   <TableCell className="hidden sm:table-cell"><StatusBadge status={emp.type} /></TableCell>
                   <TableCell className="text-sm hidden lg:table-cell font-mono text-muted-foreground">{emp.joiningDate}</TableCell>
                   <TableCell><StatusBadge status={emp.status} /></TableCell>
+                  {canEdit && (
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-lg"
+                        onClick={(e) => { e.stopPropagation(); navigate(`/employees/${emp.id}/edit`); }}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             )}

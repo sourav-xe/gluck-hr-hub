@@ -5,7 +5,7 @@ import { UserRole } from '@/types/hr';
 import ThemeToggle from '@/components/ThemeToggle';
 import {
   LayoutDashboard, Users, CalendarCheck, CalendarOff, DollarSign,
-  FileText, Zap, Settings, ChevronLeft, ChevronRight, Menu, X, Bell
+  FileText, Zap, Settings, ChevronLeft, ChevronRight, Menu, X, Bell, LogOut
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -31,11 +31,10 @@ const roleLabels: Record<UserRole, string> = {
 };
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user, setRole, hasAccess } = useAuth();
+  const { user, setRole, hasAccess, signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Initialize theme on mount
   useEffect(() => {
     const theme = localStorage.getItem('theme');
     if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -47,19 +46,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex w-full bg-background">
-      {/* Mobile overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 bg-foreground/40 backdrop-blur-sm z-40 lg:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
-      {/* Sidebar */}
       <aside className={`
         fixed lg:sticky top-0 left-0 z-50 h-screen flex flex-col transition-all duration-300
         bg-sidebar
         ${collapsed ? 'w-[72px]' : 'w-[260px]'}
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
-        {/* Logo */}
         <div className={`flex items-center h-16 px-4 ${collapsed ? 'justify-center' : ''}`}>
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sidebar-primary to-accent/80 flex items-center justify-center text-sidebar-primary-foreground font-bold text-sm shadow-lg shadow-accent/20">
@@ -74,7 +70,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 py-3 overflow-y-auto">
           <ul className="space-y-1 px-3">
             {visibleItems.map(item => (
@@ -94,7 +89,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </ul>
         </nav>
 
-        {/* Role switcher */}
+        {/* Role switcher (demo) */}
         {!collapsed && (
           <div className="p-3 border-t border-sidebar-border animate-fade-in">
             <p className="text-[10px] uppercase tracking-widest text-sidebar-muted mb-2 px-1 font-semibold">Demo Role</p>
@@ -111,7 +106,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="hidden lg:flex items-center justify-center h-11 border-t border-sidebar-border text-sidebar-muted hover:text-sidebar-foreground transition-colors"
@@ -120,9 +114,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </button>
       </aside>
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
         <header className="h-16 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 glass-card border-b border-border/50">
           <button onClick={() => setMobileOpen(true)} className="lg:hidden p-2 -ml-2 hover:bg-muted rounded-xl transition-colors">
             <Menu className="w-5 h-5" />
@@ -142,10 +134,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-primary-foreground text-xs font-bold shadow-md shadow-primary/20">
               {user.name.split(' ').map(n => n[0]).join('')}
             </div>
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl text-muted-foreground hover:text-destructive" onClick={signOut} title="Sign out">
+              <LogOut className="h-4 w-4" />
+            </Button>
           </div>
         </header>
 
-        {/* Page content */}
         <main className="flex-1 p-4 lg:p-6 overflow-auto">
           {children}
         </main>
