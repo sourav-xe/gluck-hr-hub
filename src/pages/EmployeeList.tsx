@@ -87,7 +87,7 @@ export default function EmployeeList() {
           </TableHeader>
           <TableBody>
             {paginated.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No employees found</TableCell></TableRow>
+              <TableRow><TableCell colSpan={canEdit ? 7 : 6} className="text-center py-12 text-muted-foreground">No employees found</TableCell></TableRow>
             ) : (
               paginated.map(emp => (
                 <TableRow key={emp.id} className="cursor-pointer hover:bg-muted/30 transition-colors border-border/50" onClick={() => navigate(`/employees/${emp.id}`)}>
