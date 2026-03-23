@@ -12,7 +12,8 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export default function EmployeeList() {
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
+  const { hasAccess } = useAuth();
+  const canEdit = hasAccess(['super_admin', 'hr_manager']);
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
