@@ -14,6 +14,92 @@ export type Database = {
   }
   public: {
     Tables: {
+      employees: {
+        Row: {
+          account_holder_name: string | null
+          account_number: string | null
+          address: string | null
+          avatar_url: string | null
+          bank_name: string | null
+          created_at: string
+          date_of_birth: string | null
+          department: string | null
+          email: string
+          full_name: string
+          id: string
+          job_title: string | null
+          joining_date: string | null
+          nationality: string | null
+          passport_number: string | null
+          phone: string | null
+          reporting_manager_id: string | null
+          salary_amount: number
+          salary_type: string
+          status: string
+          type: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          account_holder_name?: string | null
+          account_number?: string | null
+          address?: string | null
+          avatar_url?: string | null
+          bank_name?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          department?: string | null
+          email: string
+          full_name: string
+          id?: string
+          job_title?: string | null
+          joining_date?: string | null
+          nationality?: string | null
+          passport_number?: string | null
+          phone?: string | null
+          reporting_manager_id?: string | null
+          salary_amount?: number
+          salary_type?: string
+          status?: string
+          type?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          account_holder_name?: string | null
+          account_number?: string | null
+          address?: string | null
+          avatar_url?: string | null
+          bank_name?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          department?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          job_title?: string | null
+          joining_date?: string | null
+          nationality?: string | null
+          passport_number?: string | null
+          phone?: string | null
+          reporting_manager_id?: string | null
+          salary_amount?: number
+          salary_type?: string
+          status?: string
+          type?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employees_reporting_manager_id_fkey"
+            columns: ["reporting_manager_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null

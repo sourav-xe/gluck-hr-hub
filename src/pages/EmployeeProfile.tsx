@@ -1,14 +1,19 @@
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { employees, attendanceRecords, leaveRequests, payrollRecords, generatedDocuments, leaveBalances } from '@/data/mockData';
+import { employees as mockEmployees, attendanceRecords, leaveRequests, payrollRecords, generatedDocuments, leaveBalances } from '@/data/mockData';
+import { fetchEmployeeById } from '@/lib/employeeService';
+import { Employee } from '@/types/hr';
 import StatusBadge from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Edit, FileDown, Mail, Phone, MapPin, Building, Calendar, Briefcase, CreditCard, User, Globe, Shield } from 'lucide-react';
+import { ArrowLeft, Edit, FileDown, Mail, Phone, MapPin, Building, Calendar, Briefcase, CreditCard, User, Globe, Shield, Loader2 } from 'lucide-react';
 
 function calcTenure(joiningDate: string) {
   const parts = joiningDate.split('/');
+  if (parts.length !== 3) return 'N/A';
   const joined = new Date(+parts[2], +parts[1] - 1, +parts[0]);
+  if (isNaN(joined.getTime())) return 'N/A';
   const now = new Date();
   const months = (now.getFullYear() - joined.getFullYear()) * 12 + (now.getMonth() - joined.getMonth());
   const y = Math.floor(months / 12);
@@ -19,7 +24,30 @@ function calcTenure(joiningDate: string) {
 export default function EmployeeProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const emp = employees.find(e => e.id === id);
+  const [emp, setEmp] = useState<Employee | null | undefined>(undefined);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Try mock first, then DB
+    const mock = mockEmployees.find(e => e.id === id);
+    if (mock) {
+      setEmp(mock);
+      setLoading(false);
+    } else if (id) {
+      fetchEmployeeById(id).then(dbEmp => {
+        setEmp(dbEmp);
+        setLoading(false);
+      });
+    } else {
+      setLoading(false);
+    }
+  }, [id]);
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground">
+      <Loader2 className="w-5 h-5 animate-spin" /> Loading employee...
+    </div>
+  );
 
   if (!emp) return (
     <div className="text-center py-16">
@@ -33,9 +61,11 @@ export default function EmployeeProfile() {
   const empPayroll = payrollRecords.filter(p => p.employeeId === id);
   const empDocs = generatedDocuments.filter(d => d.linkedTo === emp.fullName);
   const balance = leaveBalances.find(b => b.employeeId === id);
-  const manager = emp.reportingManagerId ? employees.find(e => e.id === emp.reportingManagerId) : undefined;
+  const manager = emp.reportingManagerId ? mockEmployees.find(e => e.id === emp.reportingManagerId) : undefined;
   const tenure = calcTenure(emp.joiningDate);
-  const empId = `GG-${new Date(emp.joiningDate.split('/').reverse().join('-')).getFullYear()}-${emp.id.padStart(3, '0')}`;
+  const padId = typeof emp.id === 'string' && emp.id.length <= 5 ? emp.id.padStart(3, '0') : emp.id.slice(0, 8);
+  const joiningYear = (() => { try { return new Date(emp.joiningDate.split('/').reverse().join('-')).getFullYear(); } catch { return ''; } })();
+  const empId = `GG-${joiningYear}-${padId}`;
 
   return (
     <div className="animate-fade-in space-y-6">
