@@ -47,7 +47,7 @@ export default function TemplateList() {
 
   const handleDelete = async () => {
     if (!deleteId) return;
-    const { error } = await supabase.from('document_templates').delete().eq('id', deleteId);
+    const { error } = await (supabase as any).from('document_templates').delete().eq('id', deleteId);
     if (error) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } else {

@@ -36,7 +36,7 @@ export default function GenerateFromTemplate() {
   useEffect(() => {
     const fetchTemplate = async () => {
       if (!id) return;
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('document_templates')
         .select('*')
         .eq('id', id)
