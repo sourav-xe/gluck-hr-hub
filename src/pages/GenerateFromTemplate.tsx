@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Download, Loader2, FileText } from 'lucide-react';
+import { ArrowLeft, Download, Loader2, FileText, CheckCircle } from 'lucide-react';
 import JSZip from 'jszip';
 
 interface TemplateField {
@@ -90,7 +90,7 @@ export default function GenerateFromTemplate() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [template, setTemplate] = useState<MockTemplate | null>(null);
+  const [template, setTemplate] = useState<Template | null>(null);
   const [loading, setLoading] = useState(true);
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [generating, setGenerating] = useState(false);

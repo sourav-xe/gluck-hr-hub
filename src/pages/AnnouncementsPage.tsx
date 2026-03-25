@@ -265,7 +265,7 @@ export default function AnnouncementsPage() {
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
-        fullText += content.items.map((item: { str?: string }) => item.str || '').join(' ') + '\n';
+        fullText += content.items.map((item: any) => item.str || '').join(' ') + '\n';
       }
       if (!fullText.trim()) {
         toast({ title: 'No text found in PDF', description: 'Make sure the PDF contains selectable text.', variant: 'destructive' });

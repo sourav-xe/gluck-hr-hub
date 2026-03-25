@@ -82,27 +82,29 @@ export default function TemplateUpload() {
       // Extract fields from DOCX
       const fields = await extractRedFields(file);
 
-      const response = await apiFetch('/api/doc-simple-templates', {
-        method: 'POST',
-        body: formData,
+      // Read file as data URL for storage
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
       });
 
-      // Save to mock store
-      const saved = addTemplate({
+      // Save to Supabase
+      const { supabase } = await import('@/integrations/supabase/client');
+      const { data: saved, error } = await supabase.from('document_templates').insert({
         name: templateName,
         description: description || null,
         original_file_name: file.name,
         original_file_url: dataUrl,
         file_type: 'docx',
-        fields,
-      });
+        fields: fields as any,
+      }).select().single();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Upload failed');
-      }
+      if (error) throw new Error(error.message);
 
-      setResult({ fieldsFound: data.fieldsFound, templateId: data.template.id });
-      toast({ title: 'Template uploaded', description: data.message });
+      setResult({ fieldsFound: fields.length, templateId: saved.id });
+      toast({ title: 'Template uploaded', description: `${fields.length} dynamic fields detected` });
     } catch (err: unknown) {
       toast({ title: 'Upload failed', description: (err as Error).message, variant: 'destructive' });
     } finally {
