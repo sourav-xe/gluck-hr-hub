@@ -29,26 +29,35 @@ function escapeRegex(str: string): string {
 }
 
 function fixBrokenAlignment(xml: string): string {
-  // Fix "distribute" alignment globally
+  // Fix distribute alignment globally
   let result = xml.replace(/<w:jc\s+w:val=["']distribute["']\s*\/>/gi, '<w:jc w:val="left"/>');
-  
-  // Fix "both" (justify) alignment only for bold heading paragraphs
-  // Match each paragraph block and check if it's a heading-like paragraph (all bold, or has heading style)
+
+  // Normalize short bold / heading-like paragraphs that commonly break in PDF/preview renderers
   result = result.replace(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/g, (para) => {
-    const isHeadingStyle = /<w:pStyle\s+w:val=["']Heading/i.test(para);
-    const hasBold = /<w:b\s*\/?>|<w:b\s+w:val=["'](?:true|1)["']/i.test(para);
-    const hasJustify = /<w:jc\s+w:val=["']both["']\s*\/>/i.test(para);
-    
-    // Count text content length - short bold lines get stretched badly by justify
-    const textMatches = para.match(/<w:t[^>]*>([^<]*)<\/w:t>/g);
-    const totalText = textMatches ? textMatches.map(t => t.replace(/<[^>]+>/g, '')).join('').length : 0;
-    
-    if (hasJustify && (isHeadingStyle || (hasBold && totalText < 80))) {
-      return para.replace(/<w:jc\s+w:val=["']both["']\s*\/>/gi, '<w:jc w:val="left"/>');
-    }
-    return para;
+    const isHeadingStyle = /<w:pStyle\s+w:val=["'][^"']*Heading[^"']*["']/i.test(para);
+    const hasBold = /<w:b(?:\s*\/?>|\s+w:val=["'](?:true|1)["'][^>]*\/?>)/i.test(para);
+    const hasProblemAlignment = /<w:jc\s+w:val=["'](?:both|distribute)["']\s*\/>/i.test(para);
+    const hasTabRuns = /<w:tab\s*\/>/i.test(para);
+
+    const textContent = (para.match(/<w:t[^>]*>[\s\S]*?<\/w:t>/g) || [])
+      .map((t) => t.replace(/<[^>]+>/g, ""))
+      .join("")
+      .trim();
+
+    const shouldNormalize = isHeadingStyle || (hasBold && (textContent.length < 120 || hasTabRuns));
+    if (!shouldNormalize) return para;
+
+    let updated = para;
+
+    // Short justified headings create huge inter-word gaps
+    updated = updated.replace(/<w:jc\s+w:val=["'](?:both|distribute)["']\s*\/>/gi, '<w:jc w:val="left"/>');
+
+    // Tabs inside heading lines become exaggerated gaps in some PDF/preview renderers
+    updated = updated.replace(/<w:tab\s*\/>/gi, '<w:t xml:space="preserve"> </w:t>');
+
+    return updated;
   });
-  
+
   return result;
 }
 
