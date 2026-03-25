@@ -5,7 +5,7 @@ import { UserRole } from '@/types/hr';
 import ThemeToggle from '@/components/ThemeToggle';
 import {
   LayoutDashboard, Users, CalendarCheck, CalendarOff, DollarSign,
-  FileText, Zap, Settings, Megaphone, ChevronLeft, ChevronRight, Menu, X, Bell, LogOut, UserRound, FolderOpen, ClipboardCheck, LayoutTemplate
+  FileText, Zap, Settings, Megaphone, ChevronLeft, ChevronRight, Menu, X, Bell, LogOut, UserRound, FolderOpen, ClipboardCheck, LayoutTemplate, Search
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';

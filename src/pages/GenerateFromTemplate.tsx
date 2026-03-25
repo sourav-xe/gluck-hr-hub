@@ -90,7 +90,7 @@ export default function GenerateFromTemplate() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [template, setTemplate] = useState<MockTemplate | null>(null);
+  const [template, setTemplate] = useState<Template | null>(null);
   const [loading, setLoading] = useState(true);
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [generating, setGenerating] = useState(false);
