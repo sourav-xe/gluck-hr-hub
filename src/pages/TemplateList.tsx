@@ -1,55 +1,30 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { getAllTemplates, deleteTemplate, type MockTemplate } from '@/lib/mockTemplateStore';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, FileText, Trash2, Play, Calendar, Tag, Loader2 } from 'lucide-react';
+import { Plus, FileText, Trash2, Play, Calendar, Tag } from 'lucide-react';
 import { format } from 'date-fns';
-
-interface Template {
-  id: string;
-  name: string;
-  description: string | null;
-  original_file_name: string;
-  file_type: string;
-  fields: { fieldName: string; placeholder: string }[];
-  created_at: string;
-}
 
 export default function TemplateList() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [templates, setTemplates] = useState<MockTemplate[]>([]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const fetchTemplates = async () => {
-    setLoading(true);
-    const { data, error } = await (supabase as any)
-      .from('document_templates')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } else {
-      setTemplates((data || []).map((t: any) => ({
-        ...t,
-        fields: Array.isArray(t.fields) ? t.fields : [],
-      })));
-    }
-    setLoading(false);
+  const fetchTemplates = () => {
+    setTemplates(getAllTemplates());
   };
 
   useEffect(() => { fetchTemplates(); }, []);
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!deleteId) return;
-    const { error } = await (supabase as any).from('document_templates').delete().eq('id', deleteId);
-    if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    const ok = deleteTemplate(deleteId);
+    if (!ok) {
+      toast({ title: 'Error', description: 'Template not found', variant: 'destructive' });
     } else {
       toast({ title: '🗑️ Template deleted' });
       fetchTemplates();
@@ -69,11 +44,7 @@ export default function TemplateList() {
         }
       />
 
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-6 h-6 animate-spin text-primary" />
-        </div>
-      ) : templates.length === 0 ? (
+      {templates.length === 0 ? (
         <div className="glass-card rounded-2xl p-12 text-center">
           <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
           <h3 className="font-bold text-lg mb-1">No templates yet</h3>

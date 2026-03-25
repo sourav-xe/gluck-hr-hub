@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { addTemplate } from '@/lib/mockTemplateStore';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,41 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Upload, FileText, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import JSZip from 'jszip';
+
+// Parse red-colored text from DOCX XML as dynamic fields
+async function extractRedFields(file: File): Promise<{ fieldName: string; placeholder: string }[]> {
+  const arrayBuffer = await file.arrayBuffer();
+  const zip = await JSZip.loadAsync(arrayBuffer);
+  const docXml = await zip.file('word/document.xml')?.async('string');
+  if (!docXml) return [];
+
+  const redColors = /(?:FF0000|ff0000|C00000|c00000|ED1C24|ed1c24|FF3333|ff3333|CC0000|cc0000|990000|FF4444|ff4444|E60000|e60000)/;
+  const fields: { fieldName: string; placeholder: string }[] = [];
+  const seen = new Set<string>();
+
+  // Match runs with red color
+  const runRegex = /<w:r\b[^>]*>([\s\S]*?)<\/w:r>/g;
+  let match;
+  while ((match = runRegex.exec(docXml)) !== null) {
+    const runContent = match[1];
+    if (redColors.test(runContent)) {
+      const textMatch = /<w:t[^>]*>([\s\S]*?)<\/w:t>/g;
+      let tm;
+      while ((tm = textMatch.exec(runContent)) !== null) {
+        const text = tm[1].trim();
+        if (text && !seen.has(text)) {
+          seen.add(text);
+          fields.push({
+            fieldName: text.replace(/[^a-zA-Z0-9\s]/g, '').trim() || text,
+            placeholder: text,
+          });
+        }
+      }
+    }
+  }
+  return fields;
+}
 
 export default function TemplateUpload() {
   const navigate = useNavigate();
@@ -44,32 +79,28 @@ export default function TemplateUpload() {
     setUploading(true);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('templateName', templateName);
-      formData.append('description', description);
+      // Extract fields from DOCX
+      const fields = await extractRedFields(file);
 
-      const { data: { session } } = await supabase.auth.getSession();
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-template`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: formData,
-        }
+      // Convert file to base64 data URL for storage
+      const arrayBuffer = await file.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
       );
+      const dataUrl = `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${base64}`;
 
-      const data = await response.json();
+      // Save to mock store
+      const saved = addTemplate({
+        name: templateName,
+        description: description || null,
+        original_file_name: file.name,
+        original_file_url: dataUrl,
+        file_type: 'docx',
+        fields,
+      });
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Upload failed');
-      }
-
-      setResult({ fieldsFound: data.fieldsFound, templateId: data.template.id });
-      toast({ title: '✅ Template uploaded', description: data.message });
+      setResult({ fieldsFound: fields.length, templateId: saved.id });
+      toast({ title: '✅ Template uploaded', description: `Found ${fields.length} dynamic field(s)` });
     } catch (err: any) {
       toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
     } finally {
@@ -100,7 +131,7 @@ export default function TemplateUpload() {
           {result.fieldsFound === 0 && (
             <div className="flex items-start gap-2 p-3 rounded-xl bg-warning/10 text-warning text-xs text-left">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-              <p>No red-colored text was detected. Make sure dynamic fields in your DOCX are colored <strong>red</strong> (e.g., #FF0000). You can edit the template fields manually.</p>
+              <p>No red-colored text was detected. Make sure dynamic fields in your DOCX are colored <strong>red</strong> (e.g., #FF0000).</p>
             </div>
           )}
           <div className="flex gap-2 justify-center pt-2">
