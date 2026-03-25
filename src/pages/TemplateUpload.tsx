@@ -79,30 +79,27 @@ export default function TemplateUpload() {
     setUploading(true);
 
     try {
-      // Extract fields from DOCX
-      const fields = await extractRedFields(file);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('templateName', templateName);
+      formData.append('description', description);
 
       const response = await apiFetch('/api/doc-simple-templates', {
         method: 'POST',
         body: formData,
       });
 
-      // Save to mock store
-      const saved = addTemplate({
-        name: templateName,
-        description: description || null,
-        original_file_name: file.name,
-        original_file_url: dataUrl,
-        file_type: 'docx',
-        fields,
-      });
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         throw new Error(data.error || 'Upload failed');
       }
 
-      setResult({ fieldsFound: data.fieldsFound, templateId: data.template.id });
-      toast({ title: 'Template uploaded', description: data.message });
+      setResult({
+        fieldsFound: typeof data.fieldsFound === 'number' ? data.fieldsFound : 0,
+        templateId: data?.template?.id || '',
+      });
+      toast({ title: 'Template uploaded', description: data.message || 'Template saved successfully.' });
     } catch (err: unknown) {
       toast({ title: 'Upload failed', description: (err as Error).message, variant: 'destructive' });
     } finally {

@@ -55,8 +55,16 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   }
   const base = getApiBaseUrl();
   const url = `${base}${path.startsWith('/') ? path : `/${path}`}`;
-  return fetch(url, {
-    ...init,
-    headers,
-  });
+  try {
+    return await fetch(url, {
+      ...init,
+      headers,
+    });
+  } catch (e) {
+    // Prevent React from going blank when the backend is down/unreachable.
+    return new Response(JSON.stringify({ error: 'API unreachable' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 }
