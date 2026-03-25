@@ -104,33 +104,14 @@ serve(async (req) => {
     // Extract red text fields
     const fields = extractRedTextFields(documentXml);
     
-    // Upload original file to storage via Supabase
-    const fileName = `templates/${Date.now()}_${file.name}`;
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("document-templates")
-      .upload(fileName, arrayBuffer, {
-        contentType: file.type || "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      });
-    
-    if (uploadError) {
-      // Try creating bucket first
-      await supabase.storage.createBucket("document-templates", { public: true });
-      const { data: retryData, error: retryError } = await supabase.storage
-        .from("document-templates")
-        .upload(fileName, arrayBuffer, {
-          contentType: file.type || "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        });
-      if (retryError) {
-        return new Response(JSON.stringify({ error: `Upload failed: ${retryError.message}` }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+    // Store file as base64 data URL (storage not available)
+    const uint8 = new Uint8Array(arrayBuffer);
+    let binary = '';
+    for (let i = 0; i < uint8.length; i++) {
+      binary += String.fromCharCode(uint8[i]);
     }
-    
-    const { data: urlData } = supabase.storage
-      .from("document-templates")
-      .getPublicUrl(fileName);
+    const base64 = btoa(binary);
+    const fileDataUrl = `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${base64}`;
     
     // Get user from auth header
     let userId = null;
@@ -146,7 +127,7 @@ serve(async (req) => {
       .insert({
         name: templateName,
         description,
-        original_file_url: urlData.publicUrl,
+        original_file_url: fileDataUrl,
         original_file_name: file.name,
         file_type: fileExt,
         fields: fields,
