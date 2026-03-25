@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Download, Eye, Trash2, FileText } from 'lucide-react';
+import { Plus, Download, Eye, Trash2, FileText, LayoutTemplate } from 'lucide-react';
 
 export default function DocumentsPage() {
   const navigate = useNavigate();
