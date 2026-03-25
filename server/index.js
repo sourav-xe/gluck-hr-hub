@@ -5,7 +5,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import multer from 'multer';
-import { User, Employee, AnnouncementSettings, SimpleDocTemplate } from './models.js';
+import { User, Employee, AnnouncementSettings, SimpleDocTemplate, Festival } from './models.js';
 import { analyzeDocxPlaceholders } from './services/docxRedAndMustache.js';
 import { registerHrDataRoutes } from './hrDataRoutes.js';
 import { registerDocumentAutomationRoutes } from './documentAutomationRoutes.js';
@@ -880,6 +880,177 @@ async function runAutoAnnouncements() {
     console.error('[auto-announcements]', e?.message || e);
   }
 }
+
+// ─── Festival Calendar ────────────────────────────────────────────────────────
+
+function serializeFestival(doc) {
+  const o = doc.toObject ? doc.toObject() : doc;
+  return {
+    id: o._id.toString(),
+    name: o.name,
+    monthDay: o.monthDay,
+    emoji: o.emoji || '🎉',
+    templateMessage: o.templateMessage || '',
+    enabled: !!o.enabled,
+    sortOrder: o.sortOrder ?? 0,
+    createdAt: o.createdAt ? o.createdAt.toISOString() : new Date().toISOString(),
+  };
+}
+
+async function callOpenAI(messages, schema = null) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  const body = { model, temperature: 0.3, messages };
+  if (schema) body.response_format = { type: 'json_object' };
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) return null;
+  if (schema) { try { return JSON.parse(text); } catch { return null; } }
+  return text;
+}
+
+// Regex fallback festival parser
+function parseFestivalsFromText(text) {
+  const months = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12,
+    january:1,february:2,march:3,april:4,june:6,july:7,august:8,september:9,october:10,november:11,december:12 };
+  const results = [];
+  const seen = new Set();
+
+  const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    // Pattern: "Festival Name - Jan 14" or "Jan 14 - Festival Name" or "Festival Name (January 14)"
+    const m1 = line.match(/^(.+?)\s*[-–:]\s*([A-Za-z]+)\s+(\d{1,2})/);
+    const m2 = line.match(/^([A-Za-z]+)\s+(\d{1,2})\s*[-–:]\s*(.+)/);
+    const m3 = line.match(/^(.+?)\s*\(([A-Za-z]+)\s+(\d{1,2})\)/);
+
+    let name = '', mon = '', day = '';
+    if (m1) { name = m1[1].trim(); mon = m1[2].toLowerCase(); day = m1[3]; }
+    else if (m2) { name = m3 ? m3[1].trim() : m2[3].trim(); mon = m2[1].toLowerCase(); day = m2[2]; }
+    else if (m3) { name = m3[1].trim(); mon = m3[2].toLowerCase(); day = m3[3]; }
+
+    const mNum = months[mon];
+    if (!name || !mNum || !day) continue;
+    const mm = String(mNum).padStart(2, '0');
+    const dd = String(Number(day)).padStart(2, '0');
+    const monthDay = `${mm}-${dd}`;
+    const key = `${name.toLowerCase()}|${monthDay}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    results.push({ name, monthDay });
+  }
+  return results;
+}
+
+// GET /api/festivals
+app.get('/api/festivals', authMiddleware, async (req, res) => {
+  try {
+    const docs = await Festival.find().sort({ monthDay: 1, sortOrder: 1 }).lean();
+    res.json(docs.map(d => serializeFestival({ toObject: () => d })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/festivals
+app.post('/api/festivals', authMiddleware, async (req, res) => {
+  try {
+    const { name, monthDay, emoji, templateMessage, enabled } = req.body;
+    if (!name || !monthDay) return res.status(400).json({ error: 'name and monthDay required' });
+    const doc = await Festival.create({ name, monthDay, emoji: emoji || '🎉', templateMessage: templateMessage || '', enabled: !!enabled });
+    res.json(serializeFestival(doc));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// PUT /api/festivals/:id
+app.put('/api/festivals/:id', authMiddleware, async (req, res) => {
+  try {
+    const fields = {};
+    for (const k of ['name', 'monthDay', 'emoji', 'templateMessage', 'enabled', 'sortOrder']) {
+      if (req.body[k] !== undefined) fields[k] = req.body[k];
+    }
+    const doc = await Festival.findByIdAndUpdate(req.params.id, { $set: fields }, { new: true });
+    if (!doc) return res.status(404).json({ error: 'Not found' });
+    res.json(serializeFestival(doc));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /api/festivals/:id
+app.delete('/api/festivals/:id', authMiddleware, async (req, res) => {
+  try {
+    const doc = await Festival.findByIdAndDelete(req.params.id);
+    if (!doc) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/festivals/bulk-enable  { ids: [...], enabled: bool }
+app.post('/api/festivals/bulk-enable', authMiddleware, async (req, res) => {
+  try {
+    const { ids, enabled } = req.body;
+    if (ids === 'all') {
+      await Festival.updateMany({}, { $set: { enabled: !!enabled } });
+    } else if (Array.isArray(ids)) {
+      await Festival.updateMany({ _id: { $in: ids } }, { $set: { enabled: !!enabled } });
+    }
+    const docs = await Festival.find().sort({ monthDay: 1 }).lean();
+    res.json(docs.map(d => serializeFestival({ toObject: () => d })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/festivals/parse-from-text  { text: "..." }
+app.post('/api/festivals/parse-from-text', authMiddleware, async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ error: 'text required' });
+
+    // Try AI first
+    const aiResult = await callOpenAI([
+      {
+        role: 'system',
+        content: 'Extract festival/holiday names and dates from the given text. Return JSON: {"festivals":[{"name":"Diwali","monthDay":"10-20","emoji":"🪔"}]}. monthDay format: MM-DD. Include only entries that have a clearly identifiable date. If date has a year, strip the year. Emoji should match the festival vibe. Return empty array if none found.',
+      },
+      { role: 'user', content: text.slice(0, 8000) },
+    ], true);
+
+    let festivals = aiResult?.festivals;
+    const source = festivals ? 'ai' : 'regex';
+
+    if (!Array.isArray(festivals) || festivals.length === 0) {
+      festivals = parseFestivalsFromText(text);
+    }
+
+    // Validate monthDay format
+    const valid = (festivals || []).filter(f => f.name && /^\d{2}-\d{2}$/.test(f.monthDay));
+    res.json({ festivals: valid, source });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/festivals/:id/suggest-template
+app.post('/api/festivals/:id/suggest-template', authMiddleware, async (req, res) => {
+  try {
+    const doc = await Festival.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: 'Not found' });
+
+    const aiMsg = await callOpenAI([
+      {
+        role: 'system',
+        content: 'You are a corporate HR communication specialist. Write a warm, professional, concise Google Chat announcement message for a festival celebration. Max 2 sentences. Use the variable {festivalName} where the festival name should appear. Return only the message text, no quotes.',
+      },
+      { role: 'user', content: `Festival: ${doc.name} ${doc.emoji || '🎉'}` },
+    ]);
+
+    const fallback = `Wishing everyone a joyful ${doc.name}! ${doc.emoji || '🎉'} May this occasion bring happiness and togetherness to our entire team.`;
+
+    res.json({ message: aiMsg ? aiMsg.trim() : fallback, source: aiMsg ? 'ai' : 'heuristic' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Simple Doc Templates (Mongoose, no Supabase) ───────────────────────────
 const memUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });

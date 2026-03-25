@@ -197,6 +197,62 @@ export async function putAnnouncementSettings(body: Partial<AnnouncementSettings
   return await parseJson<AnnouncementSettingsDto>(res);
 }
 
+// ─── Festival Calendar ────────────────────────────────────────────────────────
+
+export interface FestivalRow {
+  id: string;
+  name: string;
+  monthDay: string; // MM-DD
+  emoji: string;
+  templateMessage: string;
+  enabled: boolean;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export async function fetchFestivals(): Promise<FestivalRow[]> {
+  const res = await apiFetch('/api/festivals');
+  if (!res.ok) return [];
+  return parseJson<FestivalRow[]>(res);
+}
+
+export async function createFestival(body: Partial<FestivalRow>): Promise<FestivalRow | null> {
+  const res = await apiFetch('/api/festivals', { method: 'POST', body: JSON.stringify(body) });
+  if (!res.ok) return null;
+  return parseJson<FestivalRow>(res);
+}
+
+export async function updateFestival(id: string, body: Partial<FestivalRow>): Promise<FestivalRow | null> {
+  const res = await apiFetch(`/api/festivals/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+  if (!res.ok) return null;
+  return parseJson<FestivalRow>(res);
+}
+
+export async function deleteFestival(id: string): Promise<boolean> {
+  const res = await apiFetch(`/api/festivals/${id}`, { method: 'DELETE' });
+  return res.ok;
+}
+
+export async function bulkEnableFestivals(ids: string[] | 'all', enabled: boolean): Promise<FestivalRow[]> {
+  const res = await apiFetch('/api/festivals/bulk-enable', { method: 'POST', body: JSON.stringify({ ids, enabled }) });
+  if (!res.ok) return [];
+  return parseJson<FestivalRow[]>(res);
+}
+
+export async function parseFestivalsFromText(text: string): Promise<{ festivals: { name: string; monthDay: string; emoji: string }[]; source: string }> {
+  const res = await apiFetch('/api/festivals/parse-from-text', { method: 'POST', body: JSON.stringify({ text }) });
+  if (!res.ok) return { festivals: [], source: 'error' };
+  return parseJson(res);
+}
+
+export async function suggestFestivalTemplate(id: string): Promise<{ message: string; source: string }> {
+  const res = await apiFetch(`/api/festivals/${id}/suggest-template`, { method: 'POST' });
+  if (!res.ok) return { message: '', source: 'error' };
+  return parseJson(res);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function triggerAnnouncement(body: { mode: 'manual' | 'birthday' | 'festival'; message?: string; name?: string; festivalName?: string; templateIndex?: number }): Promise<{ ok: boolean; sentCount?: number; usedTemplateIndex?: number; error?: string }> {
   const res = await apiFetch('/api/announcements/trigger', {
     method: 'POST',

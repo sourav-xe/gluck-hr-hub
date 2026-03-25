@@ -8,10 +8,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Plus, FileText, Trash2, Play, Calendar, Tag } from 'lucide-react';
 import { format } from 'date-fns';
 
+interface Template {
+  id: string;
+  name: string;
+  description: string | null;
+  original_file_name: string;
+  file_type: string;
+  fields: { fieldName: string; placeholder: string }[];
+  created_at: string;
+}
+
 export default function TemplateList() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [templates, setTemplates] = useState<MockTemplate[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [loading, setLoading] = useState(true);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const fetchTemplates = async () => {
@@ -32,7 +43,7 @@ export default function TemplateList() {
 
   useEffect(() => { void fetchTemplates(); }, []);
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteId) return;
     const res = await apiFetch(`/api/doc-simple-templates/${deleteId}`, { method: 'DELETE' });
     if (res.ok) {
@@ -56,7 +67,11 @@ export default function TemplateList() {
         }
       />
 
-      {templates.length === 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <span className="animate-spin h-6 w-6 rounded-full border-2 border-primary/30 border-t-primary" />
+        </div>
+      ) : templates.length === 0 ? (
         <div className="glass-card rounded-2xl p-12 text-center">
           <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
           <h3 className="font-bold text-lg mb-1">No templates yet</h3>

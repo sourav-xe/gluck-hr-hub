@@ -218,6 +218,19 @@ const documentAutomationRunSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const festivalSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    monthDay: { type: String, required: true }, // MM-DD
+    emoji: { type: String, default: '🎉' },
+    templateMessage: { type: String, default: '' },
+    enabled: { type: Boolean, default: false },
+    sortOrder: { type: Number, default: 0 },
+  },
+  { timestamps: true }
+);
+festivalSchema.index({ monthDay: 1 });
+
 const simpleDocTemplateSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
@@ -288,3 +301,5 @@ export const DocumentAutomationRun =
   mongoose.models.DocumentAutomationRun || mongoose.model('DocumentAutomationRun', documentAutomationRunSchema);
 export const SimpleDocTemplate =
   mongoose.models.SimpleDocTemplate || mongoose.model('SimpleDocTemplate', simpleDocTemplateSchema);
+export const Festival =
+  mongoose.models.Festival || mongoose.model('Festival', festivalSchema);

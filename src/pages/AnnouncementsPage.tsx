@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,10 +7,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { fetchAnnouncementSettings, putAnnouncementSettings, triggerAnnouncement } from '@/lib/hrApi';
+import {
+  fetchAnnouncementSettings, putAnnouncementSettings, triggerAnnouncement,
+  fetchFestivals, createFestival, updateFestival, deleteFestival,
+  bulkEnableFestivals, parseFestivalsFromText, suggestFestivalTemplate,
+  type FestivalRow,
+} from '@/lib/hrApi';
 import {
   Send, Plus, Trash2, Pencil, Check, X, MoreVertical,
   UserRound, PartyPopper, ArrowRight, Cake, Sparkles, Save,
+  Upload, FileText, Loader2, Wand2, ToggleLeft, ToggleRight, CalendarDays,
 } from 'lucide-react';
 
 /* ── helpers ─────────────────────────────────────────────────────────────────── */
@@ -36,7 +42,7 @@ interface HistoryItem { id: number; label: string; sub: string; ts: number; kind
 
 export default function AnnouncementsPage() {
   const { toast } = useToast();
-  const [tab, setTab] = useState<'manual' | 'templates'>('manual');
+  const [tab, setTab] = useState<'manual' | 'templates' | 'festivals'>('manual');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -71,7 +77,33 @@ export default function AnnouncementsPage() {
   const [editingFest, setEditingFest] = useState<number | null>(null);
   const [editBuf, setEditBuf] = useState({ name: '', msg: '' });
 
-  /* history (session-only) */
+  /* ── festival state ──────────────────────────────────────────────────────── */
+  const [festivals, setFestivals] = useState<FestivalRow[]>([]);
+  const [festivalsLoading, setFestivalsLoading] = useState(false);
+  const [festPdfParsing, setFestPdfParsing] = useState(false);
+  const [festParsedPreview, setFestParsedPreview] = useState<{ name: string; monthDay: string; emoji: string }[] | null>(null);
+  const [festPdfSource, setFestPdfSource] = useState('');
+  const [festImporting, setFestImporting] = useState(false);
+  const [editingFestId, setEditingFestId] = useState<string | null>(null);
+  const [editingFestBuf, setEditingFestBuf] = useState({ name: '', monthDay: '', emoji: '', templateMessage: '' });
+  const [suggestingId, setSuggestingId] = useState<string | null>(null);
+  const [bulkEnabling, setBulkEnabling] = useState(false);
+  const festFileRef = useRef<HTMLInputElement>(null);
+
+  const loadFestivals = useCallback(async () => {
+    setFestivalsLoading(true);
+    const list = await fetchFestivals();
+    setFestivals(list);
+    setFestivalsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (tab === 'festivals' && festivals.length === 0 && !festivalsLoading) {
+      void loadFestivals();
+    }
+  }, [tab]);
+
+  /* ── history (session-only) ──────────────────────────────────────────────── */
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const historyIdRef = useRef(0);
 
@@ -219,6 +251,106 @@ export default function AnnouncementsPage() {
     setFestNames((p) => p.filter((_, i) => i !== idx));
   }
 
+  /* ── festival handlers ───────────────────────────────────────────────────── */
+  async function handlePdfUpload(file: File) {
+    setFestParsedPreview(null);
+    setFestPdfParsing(true);
+    try {
+      // Extract text from PDF client-side using pdfjs-dist
+      const pdfjsLib = await import('pdfjs-dist');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let fullText = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        fullText += content.items.map((item: { str?: string }) => item.str || '').join(' ') + '\n';
+      }
+      if (!fullText.trim()) {
+        toast({ title: 'No text found in PDF', description: 'Make sure the PDF contains selectable text.', variant: 'destructive' });
+        return;
+      }
+      const result = await parseFestivalsFromText(fullText);
+      if (!result.festivals.length) {
+        toast({ title: 'No festivals detected', description: 'Could not find festival names with dates in the PDF.', variant: 'destructive' });
+        return;
+      }
+      setFestParsedPreview(result.festivals);
+      setFestPdfSource(result.source);
+      toast({ title: `Found ${result.festivals.length} festival(s)`, description: result.source === 'ai' ? 'AI extracted the data' : 'Regex extracted the data' });
+    } catch (e: unknown) {
+      toast({ title: 'PDF parsing failed', description: (e as Error).message, variant: 'destructive' });
+    } finally {
+      setFestPdfParsing(false);
+    }
+  }
+
+  async function importParsedFestivals() {
+    if (!festParsedPreview?.length) return;
+    setFestImporting(true);
+    let imported = 0;
+    for (const f of festParsedPreview) {
+      const created = await createFestival({ name: f.name, monthDay: f.monthDay, emoji: f.emoji || '🎉', enabled: false });
+      if (created) imported++;
+    }
+    toast({ title: `Imported ${imported} festival(s)` });
+    setFestParsedPreview(null);
+    await loadFestivals();
+    setFestImporting(false);
+  }
+
+  async function toggleFestival(fest: FestivalRow) {
+    const updated = await updateFestival(fest.id, { enabled: !fest.enabled });
+    if (updated) setFestivals(prev => prev.map(f => f.id === fest.id ? updated : f));
+  }
+
+  async function handleBulkEnable(enabled: boolean) {
+    setBulkEnabling(true);
+    const list = await bulkEnableFestivals('all', enabled);
+    if (list.length) setFestivals(list);
+    setBulkEnabling(false);
+    toast({ title: enabled ? 'All festivals enabled' : 'All festivals disabled' });
+  }
+
+  function startEditFestival(fest: FestivalRow) {
+    setEditingFestId(fest.id);
+    setEditingFestBuf({ name: fest.name, monthDay: fest.monthDay, emoji: fest.emoji, templateMessage: fest.templateMessage });
+  }
+
+  async function commitEditFestival() {
+    if (!editingFestId) return;
+    const updated = await updateFestival(editingFestId, editingFestBuf);
+    if (updated) setFestivals(prev => prev.map(f => f.id === editingFestId ? updated : f));
+    setEditingFestId(null);
+  }
+
+  async function suggestTemplate(fest: FestivalRow) {
+    setSuggestingId(fest.id);
+    const result = await suggestFestivalTemplate(fest.id);
+    if (result.message) {
+      const updated = await updateFestival(fest.id, { templateMessage: result.message });
+      if (updated) setFestivals(prev => prev.map(f => f.id === fest.id ? updated : f));
+      toast({ title: result.source === 'ai' ? 'AI suggested a template' : 'Template suggested' });
+    } else {
+      toast({ title: 'Could not suggest template', variant: 'destructive' });
+    }
+    setSuggestingId(null);
+  }
+
+  async function handleDeleteFestival(id: string) {
+    const ok = await deleteFestival(id);
+    if (ok) setFestivals(prev => prev.filter(f => f.id !== id));
+  }
+
+  function formatMonthDay(md: string) {
+    if (!md || !/^\d{2}-\d{2}$/.test(md)) return md;
+    try {
+      const d = new Date(`2000-${md}`);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch { return md; }
+  }
+
   const automationEnabled = settings.autoBirthdayEnabled || settings.autoFestivalEnabled;
 
   /* ── render ─────────────────────────────────────────────────────────────────── */
@@ -231,17 +363,17 @@ export default function AnnouncementsPage() {
 
       {/* Tab bar */}
       <div className="flex gap-1 bg-muted/30 border border-border/50 rounded-xl p-1 w-fit">
-        {(['manual', 'templates'] as const).map((t) => (
+        {([['manual', 'Manual'], ['templates', 'Templates'], ['festivals', 'Festivals 🎉']] as const).map(([t, label]) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all capitalize ${
+            className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
               tab === t
                 ? 'bg-foreground text-background shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            {t}
+            {label}
           </button>
         ))}
       </div>
@@ -413,6 +545,194 @@ export default function AnnouncementsPage() {
                 Manage Templates <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── FESTIVALS TAB ──────────────────────────────────────────────────────── */}
+      {tab === 'festivals' && (
+        <div className="space-y-5">
+          {/* PDF Upload Card */}
+          <div className="rounded-xl border border-border/50 bg-card/50 p-5 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <CalendarDays className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">Import Festival Calendar from PDF</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Upload a PDF containing festival names and dates — AI will extract and set them up automatically.</p>
+              </div>
+            </div>
+
+            <div
+              className="border-2 border-dashed border-border/60 rounded-xl p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all"
+              onClick={() => festFileRef.current?.click()}
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f?.type === 'application/pdf') handlePdfUpload(f); }}
+            >
+              <input ref={festFileRef} type="file" accept=".pdf" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handlePdfUpload(f); e.target.value = ''; }} />
+              {festPdfParsing ? (
+                <div className="flex flex-col items-center gap-2">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  <p className="text-sm text-muted-foreground">Reading PDF & extracting festivals…</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-2">
+                  <Upload className="w-8 h-8 text-muted-foreground" />
+                  <p className="text-sm font-medium">Drop PDF here or click to browse</p>
+                  <p className="text-xs text-muted-foreground">Festival names + dates will be auto-detected</p>
+                </div>
+              )}
+            </div>
+
+            {/* Parsed preview */}
+            {festParsedPreview && festParsedPreview.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Detected {festParsedPreview.length} Festival(s)
+                    <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] ${festPdfSource === 'ai' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                      {festPdfSource === 'ai' ? '✦ AI' : 'Regex'}
+                    </span>
+                  </p>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="rounded-lg h-8 text-xs" onClick={() => setFestParsedPreview(null)}>Discard</Button>
+                    <Button size="sm" className="rounded-lg h-8 text-xs gap-1.5 shadow-md shadow-primary/20" onClick={importParsedFestivals} disabled={festImporting}>
+                      {festImporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+                      Import All
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  {festParsedPreview.map((f, i) => (
+                    <div key={i} className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/40 border border-border/40">
+                      <span className="text-lg">{f.emoji}</span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold truncate">{f.name}</p>
+                        <p className="text-[10px] text-muted-foreground">{formatMonthDay(f.monthDay)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Festival List */}
+          <div className="rounded-xl border border-border/50 bg-card/50 overflow-hidden">
+            <div className="px-5 py-4 border-b border-border/40 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="font-semibold text-sm">Festival Calendar</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {festivals.filter(f => f.enabled).length} of {festivals.length} enabled for auto-trigger
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  size="sm" variant="outline"
+                  className="rounded-lg h-8 text-xs gap-1.5"
+                  onClick={() => void handleBulkEnable(false)}
+                  disabled={bulkEnabling || festivals.every(f => !f.enabled)}
+                >
+                  <ToggleLeft className="w-3.5 h-3.5" /> Disable All
+                </Button>
+                <Button
+                  size="sm"
+                  className="rounded-lg h-8 text-xs gap-1.5 shadow-md shadow-primary/20"
+                  onClick={() => void handleBulkEnable(true)}
+                  disabled={bulkEnabling || festivals.every(f => f.enabled)}
+                >
+                  {bulkEnabling ? <Loader2 className="w-3 h-3 animate-spin" /> : <ToggleRight className="w-3.5 h-3.5" />} Enable All
+                </Button>
+                <Button
+                  size="sm" variant="ghost"
+                  className="rounded-lg h-8 text-xs gap-1.5"
+                  onClick={() => { setEditingFestId('__new__'); setEditingFestBuf({ name: '', monthDay: '', emoji: '🎉', templateMessage: '' }); }}
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add
+                </Button>
+              </div>
+            </div>
+
+            {/* Add new row */}
+            {editingFestId === '__new__' && (
+              <div className="px-5 py-3 border-b border-border/30 bg-primary/5 grid grid-cols-1 sm:grid-cols-[auto_1fr_1fr_auto] gap-2 items-center">
+                <Input value={editingFestBuf.emoji} onChange={e => setEditingFestBuf(b => ({ ...b, emoji: e.target.value }))} className="h-8 w-14 text-center text-lg rounded-lg bg-muted/30 border-border/50" placeholder="🎉" />
+                <Input value={editingFestBuf.name} onChange={e => setEditingFestBuf(b => ({ ...b, name: e.target.value }))} className="h-8 text-xs rounded-lg bg-muted/30 border-border/50" placeholder="Festival name" />
+                <Input type="date" value={editingFestBuf.monthDay ? `2000-${editingFestBuf.monthDay}` : ''} onChange={e => setEditingFestBuf(b => ({ ...b, monthDay: e.target.value.slice(5) }))} className="h-8 text-xs rounded-lg bg-muted/30 border-border/50 [color-scheme:dark]" />
+                <div className="flex gap-1">
+                  <button onClick={async () => { if (!editingFestBuf.name || !editingFestBuf.monthDay) return; const created = await createFestival({ ...editingFestBuf, enabled: false }); if (created) { setFestivals(prev => [...prev, created]); setEditingFestId(null); } }} className="w-7 h-7 flex items-center justify-center rounded-md text-emerald-400 hover:bg-emerald-400/10"><Check className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => setEditingFestId(null)} className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted/40"><X className="w-3.5 h-3.5" /></button>
+                </div>
+              </div>
+            )}
+
+            {festivalsLoading ? (
+              <div className="py-12 text-center"><Loader2 className="w-5 h-5 animate-spin text-primary mx-auto" /></div>
+            ) : festivals.length === 0 ? (
+              <div className="py-12 text-center">
+                <p className="text-sm text-muted-foreground">No festivals yet. Upload a PDF or add one manually.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border/30">
+                {festivals.map(fest => (
+                  <div key={fest.id} className={`px-5 py-3.5 transition-colors ${fest.enabled ? 'bg-success/3' : ''}`}>
+                    {editingFestId === fest.id ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr_1fr_1fr_auto] gap-2 items-center">
+                        <Input value={editingFestBuf.emoji} onChange={e => setEditingFestBuf(b => ({ ...b, emoji: e.target.value }))} className="h-8 w-14 text-center text-lg rounded-lg bg-muted/30" placeholder="🎉" />
+                        <Input value={editingFestBuf.name} onChange={e => setEditingFestBuf(b => ({ ...b, name: e.target.value }))} className="h-8 text-xs rounded-lg bg-muted/30" placeholder="Name" />
+                        <Input type="date" value={editingFestBuf.monthDay ? `2000-${editingFestBuf.monthDay}` : ''} onChange={e => setEditingFestBuf(b => ({ ...b, monthDay: e.target.value.slice(5) }))} className="h-8 text-xs rounded-lg bg-muted/30 [color-scheme:dark]" />
+                        <Input value={editingFestBuf.templateMessage} onChange={e => setEditingFestBuf(b => ({ ...b, templateMessage: e.target.value }))} className="h-8 text-xs rounded-lg bg-muted/30" placeholder="Template message (optional)" />
+                        <div className="flex gap-1">
+                          <button onClick={() => void commitEditFestival()} className="w-7 h-7 flex items-center justify-center rounded-md text-emerald-400 hover:bg-emerald-400/10"><Check className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => setEditingFestId(null)} className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted/40"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="text-xl w-8 text-center">{fest.emoji}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-sm">{fest.name}</span>
+                            <span className="text-[11px] text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-md">{formatMonthDay(fest.monthDay)}</span>
+                            {fest.enabled && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20">● Active</span>}
+                          </div>
+                          {fest.templateMessage ? (
+                            <p className="text-[11px] text-muted-foreground mt-0.5 truncate max-w-lg">{fest.templateMessage}</p>
+                          ) : (
+                            <p className="text-[11px] text-muted-foreground/50 mt-0.5 italic">No template — click ✦ to generate</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            title="AI suggest template"
+                            onClick={() => void suggestTemplate(fest)}
+                            disabled={suggestingId === fest.id}
+                            className="w-7 h-7 flex items-center justify-center rounded-md text-primary/70 hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40"
+                          >
+                            {suggestingId === fest.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
+                          </button>
+                          <button onClick={() => startEditFestival(fest)} className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => void handleDeleteFestival(fest.id)} className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                          <Switch checked={fest.enabled} onCheckedChange={() => void toggleFestival(fest)} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl bg-gradient-to-br from-primary/10 to-accent/5 border border-primary/20 p-4 text-xs text-muted-foreground space-y-1">
+            <p className="font-semibold text-foreground text-sm">How festival auto-triggers work</p>
+            <p>• Each festival with a toggle <span className="text-success font-semibold">enabled</span> will automatically send its template message to Google Chat on the configured date every year.</p>
+            <p>• Click <span className="inline-flex items-center gap-1 text-primary"><Wand2 className="w-3 h-3" /> Wand</span> on any festival to let AI write a warm message for it.</p>
+            <p>• Use <code className="bg-muted px-1 rounded">{'{festivalName}'}</code> in the template to dynamically insert the festival name.</p>
           </div>
         </div>
       )}
