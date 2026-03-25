@@ -72,15 +72,27 @@ serve(async (req) => {
     
     // Download original DOCX file
     const fileUrl = template.original_file_url;
-    const response = await fetch(fileUrl);
-    if (!response.ok) {
-      return new Response(JSON.stringify({ error: "Could not download template file" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    let arrayBuffer: ArrayBuffer;
     
-    const arrayBuffer = await response.arrayBuffer();
+    if (fileUrl.startsWith('data:')) {
+      // Handle base64 data URL
+      const base64 = fileUrl.split(',')[1];
+      const binaryStr = atob(base64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+      arrayBuffer = bytes.buffer;
+    } else {
+      const response = await fetch(fileUrl);
+      if (!response.ok) {
+        return new Response(JSON.stringify({ error: "Could not download template file" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      arrayBuffer = await response.arrayBuffer();
+    }
     
     // Parse DOCX
     const zip = await JSZip.loadAsync(arrayBuffer);
