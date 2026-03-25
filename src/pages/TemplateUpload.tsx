@@ -79,21 +79,25 @@ export default function TemplateUpload() {
     setUploading(true);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('templateName', templateName);
-      formData.append('description', description);
+      // Extract fields from DOCX
+      const fields = await extractRedFields(file);
 
       const response = await apiFetch('/api/doc-simple-templates', {
         method: 'POST',
         body: formData,
       });
 
+      // Read file as data URL for storage
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
       const data = await response.json().catch(() => ({}));
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Upload failed');
-      }
+      if (error) throw new Error(error.message);
 
       setResult({
         fieldsFound: typeof data.fieldsFound === 'number' ? data.fieldsFound : 0,
