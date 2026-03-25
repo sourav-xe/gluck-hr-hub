@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Download, Loader2, FileText } from 'lucide-react';
+import { ArrowLeft, Download, Loader2, FileText, CheckCircle } from 'lucide-react';
 import JSZip from 'jszip';
 
 interface TemplateField {
