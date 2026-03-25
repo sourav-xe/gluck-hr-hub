@@ -5,7 +5,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { getApiBaseUrl, saveStoredAuth } from '@/lib/api';
-import { Eye, EyeOff, LogIn, Building2 } from 'lucide-react';
+import { Eye, EyeOff, LogIn, Building2, Zap } from 'lucide-react';
+
+const DEMO_USER = {
+  token: 'demo-token-bypass',
+  user: {
+    id: 'demo-admin-001',
+    name: 'Demo Admin',
+    email: 'admin@demo.com',
+    role: 'super_admin',
+    employeeId: 'demo-emp-001',
+    onboardingComplete: true,
+    needsOnboarding: false,
+  },
+};
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
