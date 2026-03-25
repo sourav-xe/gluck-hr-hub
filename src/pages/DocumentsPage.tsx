@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchGeneratedDocuments, deleteGeneratedDocument } from '@/lib/hrApi';
 import { fetchEmployees } from '@/lib/employeeService';
 import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import type { Employee, GeneratedDocument } from '@/types/hr';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';

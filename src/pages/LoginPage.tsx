@@ -5,7 +5,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { getApiBaseUrl, saveStoredAuth } from '@/lib/api';
-import { Eye, EyeOff, LogIn, Building2 } from 'lucide-react';
+import { Eye, EyeOff, LogIn, Building2, Zap } from 'lucide-react';
+
+const DEMO_USER = {
+  token: 'demo-token-bypass',
+  user: {
+    id: 'demo-admin-001',
+    name: 'Demo Admin',
+    email: 'admin@demo.com',
+    role: 'super_admin',
+    employeeId: 'demo-emp-001',
+    onboardingComplete: true,
+    needsOnboarding: false,
+  },
+};
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -171,12 +184,28 @@ export default function LoginPage() {
               )}
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border/50" /></div>
+              <div className="relative flex justify-center text-xs"><span className="bg-card px-3 text-muted-foreground">or</span></div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full h-12 rounded-xl text-sm font-semibold gap-2.5 border-accent/30 hover:bg-accent/10"
+              onClick={() => {
+                saveStoredAuth(DEMO_USER);
+                window.location.href = '/';
+              }}
+            >
+              <Zap className="w-4 h-4 text-accent" />
+              Demo Login (No Backend Needed)
+            </Button>
           </form>
 
           <p className="text-xs text-center text-muted-foreground">
-            Run <code className="text-foreground">npm run dev:all</code> — if login fails, check the terminal:{' '}
-            <code className="text-foreground">[api]</code> must show <strong>MongoDB connected</strong> (Atlas → Network Access → allow your IP).
-            Seed users: <code className="text-foreground">npm run seed</code>.
+            Demo mode bypasses the backend. For full features, run <code className="text-foreground">npm run dev:all</code> locally.
           </p>
         </div>
       </div>

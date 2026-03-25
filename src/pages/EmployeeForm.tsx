@@ -254,7 +254,7 @@ export default function EmployeeForm() {
         requiresOnboarding: true,
       });
       if (!res.ok) {
-        toast({ title: 'Failed to create account', description: res.error, variant: 'destructive' });
+        toast({ title: 'Failed to create account', description: 'error' in res ? res.error : 'Unknown error', variant: 'destructive' });
         return;
       }
       setCreated({ name: createName.trim(), email: createEmail.trim().toLowerCase(), password: createPassword, role: createRole });
@@ -303,7 +303,7 @@ export default function EmployeeForm() {
     try {
       const res = await updateEmployee(id!, { ...form as Employee, password: loginPassword.trim() || undefined });
       if (!res.ok) {
-        toast({ title: 'Update failed', description: res.error, variant: 'destructive' });
+        toast({ title: 'Update failed', description: 'error' in res ? res.error : 'Unknown error', variant: 'destructive' });
         return;
       }
       toast({ title: 'Employee updated', description: `${form.fullName} saved.` });

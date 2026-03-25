@@ -5,24 +5,13 @@ import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Plus, FileText, Trash2, Play, Calendar, Tag, Loader2 } from 'lucide-react';
+import { Plus, FileText, Trash2, Play, Calendar, Tag } from 'lucide-react';
 import { format } from 'date-fns';
-
-interface Template {
-  id: string;
-  name: string;
-  description: string | null;
-  original_file_name: string;
-  file_type: string;
-  fields: { fieldName: string; placeholder: string }[];
-  created_at: string;
-}
 
 export default function TemplateList() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [templates, setTemplates] = useState<MockTemplate[]>([]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const fetchTemplates = async () => {
@@ -43,7 +32,7 @@ export default function TemplateList() {
 
   useEffect(() => { void fetchTemplates(); }, []);
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!deleteId) return;
     const res = await apiFetch(`/api/doc-simple-templates/${deleteId}`, { method: 'DELETE' });
     if (res.ok) {
@@ -67,11 +56,7 @@ export default function TemplateList() {
         }
       />
 
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-6 h-6 animate-spin text-primary" />
-        </div>
-      ) : templates.length === 0 ? (
+      {templates.length === 0 ? (
         <div className="glass-card rounded-2xl p-12 text-center">
           <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
           <h3 className="font-bold text-lg mb-1">No templates yet</h3>

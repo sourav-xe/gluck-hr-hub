@@ -409,7 +409,7 @@ function TemplateEditorSection() {
     const res = await previewDocument(id, values);
     setPreviewLoading(false);
     if (!res.ok) {
-      toast({ title: 'Preview failed', description: res.error, variant: 'destructive' });
+      toast({ title: 'Preview failed', description: 'error' in res ? res.error : 'Unknown error', variant: 'destructive' });
       return;
     }
     if (res.pdfBase64) {
@@ -698,7 +698,7 @@ function GenerateSection() {
     const res = await previewDocument(templateId, values);
     setBusy(false);
     if (!res.ok) {
-      toast({ title: 'Preview failed', description: res.error, variant: 'destructive' });
+      toast({ title: 'Preview failed', description: 'error' in res ? res.error : 'Unknown error', variant: 'destructive' });
       return;
     }
     if (res.pdfBase64) {
