@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Download, Eye, Trash2, FileText } from 'lucide-react';
+import { Plus, Download, Eye, Trash2, FileText, LayoutTemplate } from 'lucide-react';
 
 export default function DocumentsPage() {
   const navigate = useNavigate();
@@ -23,7 +23,16 @@ export default function DocumentsPage() {
       <PageHeader
         title="Documents & Letters"
         description={`${generatedDocuments.length} documents generated`}
-        action={<Button onClick={() => navigate('/documents/generate')} className="gap-2 rounded-xl shadow-md shadow-primary/20"><Plus className="w-4 h-4" /> Generate Document</Button>}
+        action={
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/documents/templates')} className="gap-2 rounded-xl">
+              <LayoutTemplate className="w-4 h-4" /> Templates
+            </Button>
+            <Button onClick={() => navigate('/documents/generate')} className="gap-2 rounded-xl shadow-md shadow-primary/20">
+              <Plus className="w-4 h-4" /> Generate Document
+            </Button>
+          </div>
+        }
       />
 
       <div className="glass-card rounded-2xl overflow-hidden">

@@ -19,6 +19,9 @@ import PayrollPage from "@/pages/PayrollPage";
 import PayslipView from "@/pages/PayslipView";
 import DocumentsPage from "@/pages/DocumentsPage";
 import DocumentGenerator from "@/pages/DocumentGenerator";
+import TemplateUpload from "@/pages/TemplateUpload";
+import TemplateList from "@/pages/TemplateList";
+import GenerateFromTemplate from "@/pages/GenerateFromTemplate";
 import AutomationsPage from "@/pages/AutomationsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "./pages/NotFound.tsx";
@@ -62,6 +65,9 @@ function ProtectedRoutes() {
         <Route path="/payroll/payslip/:id" element={<PayslipView />} />
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/documents/generate" element={<DocumentGenerator />} />
+        <Route path="/documents/templates" element={<TemplateList />} />
+        <Route path="/documents/templates/upload" element={<TemplateUpload />} />
+        <Route path="/documents/templates/:id/generate" element={<GenerateFromTemplate />} />
         <Route path="/automations" element={<AutomationsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFound />} />
