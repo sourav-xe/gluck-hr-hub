@@ -28,8 +28,13 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function fixDistributeAlignment(xml: string): string {
+  // Remove "distribute" paragraph alignment that causes huge word gaps in headings
+  return xml.replace(/<w:jc\s+w:val=["']distribute["']\s*\/>/gi, '<w:jc w:val="left"/>');
+}
+
 function replaceRedTextInXml(xml: string, fieldValues: Record<string, string>): string {
-  let result = xml;
+  let result = fixDistributeAlignment(xml);
   for (const [placeholder, value] of Object.entries(fieldValues)) {
     if (!value) continue;
     const regex = new RegExp(
