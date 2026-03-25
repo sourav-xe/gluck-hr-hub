@@ -8,6 +8,7 @@ import {
   FileText, Zap, Settings, Megaphone, ChevronLeft, ChevronRight, Menu, X, Bell, LogOut, UserRound, FolderOpen, ClipboardCheck, LayoutTemplate
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const navItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard, roles: ['super_admin', 'hr_manager', 'reporting_manager', 'employee', 'freelancer_intern'] as UserRole[] },
@@ -48,133 +49,122 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const visibleItems = navItems.filter(item => hasAccess(item.roles));
 
+  const sidebarWidth = collapsed ? 'lg:w-[76px]' : 'lg:w-[260px]';
+
   return (
     <div className="min-h-screen flex w-full bg-background">
-      {mobileOpen && (
-        <div className="fixed inset-0 bg-foreground/40 backdrop-blur-sm z-40 lg:hidden" onClick={() => setMobileOpen(false)} />
-      )}
+      {/* Mobile overlay */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-foreground/40 backdrop-blur-sm z-40 lg:hidden"
+            onClick={() => setMobileOpen(false)}
+          />
+        )}
+      </AnimatePresence>
 
+      {/* Sidebar */}
       <aside className={`
-        fixed lg:sticky top-0 left-0 z-50 h-screen flex flex-col transition-all duration-300
-        bg-sidebar w-[260px]
-        ${collapsed ? 'lg:w-[72px]' : ''}
+        fixed lg:sticky top-0 left-0 z-50 h-screen flex flex-col transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]
+        bg-sidebar w-[260px] ${sidebarWidth}
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
-        <div className="lg:hidden relative flex items-center h-[4.25rem] px-3 border-b border-sidebar-border/70 shrink-0">
-          <div className="flex items-center gap-3 min-w-0 flex-1 pr-10">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sidebar-primary to-accent/80 flex items-center justify-center text-sidebar-primary-foreground font-bold text-sm shadow-lg shadow-accent/20 shrink-0">
+        {/* Header */}
+        <div className="flex items-center h-16 px-4 border-b border-sidebar-border/50 shrink-0">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="w-9 h-9 rounded-xl bg-sidebar-primary flex items-center justify-center text-sidebar-primary-foreground font-extrabold text-xs shrink-0 shadow-lg shadow-primary/20">
               GG
             </div>
-            <div className="min-w-0">
-              <p className="font-bold text-sidebar-foreground text-sm tracking-tight truncate">Gluck Global</p>
-              <p className="text-[10px] text-sidebar-muted font-medium">HR Management</p>
-            </div>
+            {!collapsed && (
+              <motion.div
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: 'auto' }}
+                exit={{ opacity: 0, width: 0 }}
+                className="min-w-0 overflow-hidden"
+              >
+                <p className="font-bold text-sidebar-foreground text-sm tracking-tight truncate">Gluck Global</p>
+                <p className="text-[10px] text-sidebar-muted">HR Platform</p>
+              </motion.div>
+            )}
           </div>
           <button
             type="button"
-            onClick={() => setMobileOpen(false)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 h-9 w-9 flex items-center justify-center rounded-xl text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/70 transition-colors"
-            aria-label="Close menu"
+            onClick={() => {
+              if (window.innerWidth < 1024) setMobileOpen(false);
+              else setCollapsed(!collapsed);
+            }}
+            className="h-8 w-8 flex items-center justify-center rounded-lg text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors ml-auto"
           >
-            <X className="w-4 h-4" />
+            {mobileOpen ? <X className="w-4 h-4" /> : <ChevronLeft className={`w-4 h-4 transition-transform ${collapsed ? 'rotate-180' : ''}`} />}
           </button>
         </div>
 
-        {collapsed ? (
-          <div className="hidden lg:flex flex-col items-center gap-2 py-3 px-2 border-b border-sidebar-border/70 shrink-0">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sidebar-primary to-accent/80 flex items-center justify-center text-sidebar-primary-foreground font-bold text-sm shadow-lg shadow-accent/20">
-              GG
-            </div>
-            <button
-              type="button"
-              onClick={() => setCollapsed(false)}
-              className="h-8 w-8 flex items-center justify-center rounded-xl text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/70 border border-sidebar-border/50 transition-all"
-              title="Expand sidebar"
-              aria-expanded={false}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        ) : (
-          <div className="hidden lg:flex relative items-center h-[4.25rem] px-3 border-b border-sidebar-border/70 shrink-0">
-            <div className="flex items-center gap-3 min-w-0 flex-1 pr-10">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sidebar-primary to-accent/80 flex items-center justify-center text-sidebar-primary-foreground font-bold text-sm shadow-lg shadow-accent/20 shrink-0">
-                GG
-              </div>
-              <div className="animate-fade-in min-w-0">
-                <p className="font-bold text-sidebar-foreground text-sm tracking-tight truncate">Gluck Global</p>
-                <p className="text-[10px] text-sidebar-muted font-medium">HR Management</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setCollapsed(true)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-9 w-9 flex items-center justify-center rounded-xl text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/70 border border-transparent hover:border-sidebar-border/80 transition-all"
-              title="Collapse sidebar"
-              aria-expanded
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
-        <nav className="flex-1 py-3 overflow-y-auto min-h-0">
-          <ul className="space-y-1 px-3">
+        {/* Nav */}
+        <nav className="flex-1 py-4 overflow-y-auto min-h-0">
+          <ul className="space-y-0.5 px-3">
             {visibleItems.map(item => (
               <li key={item.url}>
                 <NavLink
                   to={item.url}
                   end={item.url === '/'}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-all duration-200 ${collapsed ? 'justify-center' : ''}`}
-                  activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-semibold shadow-sm"
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40 transition-all duration-200 group ${collapsed ? 'lg:justify-center lg:px-0' : ''}`}
+                  activeClassName="bg-sidebar-primary/15 text-sidebar-primary font-semibold"
                   onClick={() => setMobileOpen(false)}
                 >
-                  <item.icon className="w-[18px] h-[18px] shrink-0" />
-                  <span className={collapsed ? 'animate-fade-in lg:hidden' : 'animate-fade-in'}>{item.title}</span>
+                  <item.icon className="w-[18px] h-[18px] shrink-0 group-hover:scale-110 transition-transform" />
+                  <span className={collapsed ? 'lg:hidden' : ''}>{item.title}</span>
                 </NavLink>
               </li>
             ))}
           </ul>
         </nav>
 
-        <div className="shrink-0 p-3 border-t border-sidebar-border/70 bg-sidebar/95 backdrop-blur-sm">
+        {/* Footer */}
+        <div className="shrink-0 p-3 border-t border-sidebar-border/50">
           <Button
             variant="ghost"
-            className={`w-full h-11 rounded-xl text-sidebar-foreground/90 hover:text-sidebar-foreground hover:bg-sidebar-accent/70 border border-sidebar-border/40 justify-start gap-3 ${collapsed ? 'lg:justify-center lg:gap-0 lg:px-0' : ''}`}
-            onClick={() => {
-              setMobileOpen(false);
-              signOut();
-            }}
+            className={`w-full h-10 rounded-xl text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-destructive/10 hover:text-destructive justify-start gap-3 text-[13px] ${collapsed ? 'lg:justify-center lg:gap-0 lg:px-0' : ''}`}
+            onClick={() => { setMobileOpen(false); signOut(); }}
           >
             <LogOut className="w-[18px] h-[18px] shrink-0" />
-            <span className={`text-[13px] font-medium ${collapsed ? 'lg:hidden' : ''}`}>Log out</span>
+            <span className={collapsed ? 'lg:hidden' : ''}>Log out</span>
           </Button>
         </div>
       </aside>
 
+      {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 glass-card border-b border-border/50">
-          <button onClick={() => setMobileOpen(true)} className="lg:hidden p-2 -ml-2 hover:bg-muted rounded-xl transition-colors">
-            <Menu className="w-5 h-5" />
-          </button>
-          <div className="hidden lg:block" />
+        <header className="h-16 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border/50">
           <div className="flex items-center gap-3">
+            <button onClick={() => setMobileOpen(true)} className="lg:hidden p-2 -ml-2 hover:bg-muted rounded-xl transition-colors">
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/50 text-muted-foreground text-sm w-64 cursor-pointer hover:bg-muted transition-colors">
+              <Search className="w-4 h-4" />
+              <span className="text-xs">Search...</span>
+              <kbd className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-background border border-border font-mono">⌘K</kbd>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
             <ThemeToggle />
             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl relative">
               <Bell className="h-4 w-4" />
-              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-accent rounded-full" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full ring-2 ring-background" />
             </Button>
-            <div className="h-8 w-px bg-border/50 mx-1" />
-            <div className="text-right">
-              <p className="text-sm font-semibold">{user.name}</p>
-              <p className="text-[11px] text-muted-foreground">{roleLabels[user.role]}</p>
+            <div className="h-6 w-px bg-border/50 mx-1" />
+            <div className="flex items-center gap-3 pl-1">
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-semibold leading-tight">{user.name}</p>
+                <p className="text-[10px] text-muted-foreground">{roleLabels[user.role]}</p>
+              </div>
+              <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold shadow-md shadow-primary/20">
+                {user.name.split(' ').map(n => n[0]).join('')}
+              </div>
             </div>
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-primary-foreground text-xs font-bold shadow-md shadow-primary/20">
-              {user.name.split(' ').map(n => n[0]).join('')}
-            </div>
-            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl text-muted-foreground hover:text-destructive" onClick={signOut} title="Sign out">
-              <LogOut className="h-4 w-4" />
-            </Button>
           </div>
         </header>
 
