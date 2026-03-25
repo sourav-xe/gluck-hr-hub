@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { getApiBaseUrl, saveStoredAuth } from '@/lib/api';
-import { Eye, EyeOff, LogIn, Building2, Zap } from 'lucide-react';
+import { Eye, EyeOff, LogIn, Zap, Shield, Users, BarChart3, FileText } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 const DEMO_USER = {
   token: 'demo-token-bypass',
@@ -19,6 +20,13 @@ const DEMO_USER = {
     needsOnboarding: false,
   },
 };
+
+const features = [
+  { icon: Users, label: 'Employee Management', desc: 'Full lifecycle tracking' },
+  { icon: BarChart3, label: 'Analytics Dashboard', desc: 'Real-time insights' },
+  { icon: FileText, label: 'Document Automation', desc: 'Smart generation' },
+  { icon: Shield, label: 'Role-Based Access', desc: 'Secure by design' },
+];
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -42,125 +50,135 @@ export default function LoginPage() {
         body: JSON.stringify({ email: email.trim(), password }),
       });
       const raw = await res.text();
-      let data: {
-        error?: string;
-        token?: string;
-        user?: {
-          id: string;
-          name: string;
-          email: string;
-          role: string;
-          employeeId?: string;
-          onboardingComplete?: boolean | null;
-          needsOnboarding?: boolean;
-        };
-      } = {};
-      try {
-        if (raw) data = JSON.parse(raw) as typeof data;
-      } catch {
-        /* proxy/HTML error page */
-      }
+      let data: any = {};
+      try { if (raw) data = JSON.parse(raw); } catch {}
       setLoading(false);
       if (!res.ok) {
         const apiMsg = data.error;
-        const proxyDown =
-          !apiMsg &&
-          (res.status === 500 || res.status === 502 || res.status === 503 || res.status === 504);
+        const proxyDown = !apiMsg && [500, 502, 503, 504].includes(res.status);
         toast({
           title: proxyDown ? 'API not running' : 'Login failed',
-          description:
-            apiMsg ||
-            (proxyDown
-              ? 'Nothing is listening on port 3001. Usually the [api] process exited because MongoDB failed to connect. In Atlas → Network Access, add your IP (or 0.0.0.0/0 for dev), then restart npm run dev:all and watch for [HR API] MongoDB connected.'
-              : res.statusText),
+          description: apiMsg || (proxyDown ? 'Backend is not reachable. Use Demo Login instead.' : res.statusText),
           variant: 'destructive',
         });
         return;
       }
-      const token = data.token;
-      const user = data.user;
-      if (!token || !user) {
+      if (!data.token || !data.user) {
         toast({ title: 'Invalid server response', variant: 'destructive' });
         return;
       }
-      saveStoredAuth({ token, user });
-      const role = String(user.role || '').toLowerCase();
+      saveStoredAuth({ token: data.token, user: data.user });
+      const role = String(data.user.role || '').toLowerCase();
       const selfServiceRole = role === 'employee' || role === 'freelancer_intern' || role === 'reporting_manager';
-      const shouldCompleteProfile = Boolean(user.needsOnboarding) || (selfServiceRole && user.onboardingComplete !== true);
+      const shouldCompleteProfile = Boolean(data.user.needsOnboarding) || (selfServiceRole && data.user.onboardingComplete !== true);
       window.location.href = shouldCompleteProfile ? '/complete-profile' : '/';
     } catch {
       setLoading(false);
-      toast({
-        title: 'Cannot reach API',
-        description:
-          'Start the backend on port 3001. Easiest: stop this tab, then run npm run dev:all (starts API + this site).',
-        variant: 'destructive',
-      });
+      toast({ title: 'Cannot reach API', description: 'Use Demo Login to explore without backend.', variant: 'destructive' });
     }
   };
 
   return (
     <div className="min-h-screen flex bg-background">
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-primary via-primary/90 to-accent/80 items-center justify-center p-12">
-        <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full bg-white/5 blur-3xl" />
-        <div className="absolute bottom-[-15%] right-[-10%] w-[50%] h-[50%] rounded-full bg-accent/10 blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[40%] h-[40%] rounded-full bg-white/5 blur-2xl" />
+      {/* Left panel — immersive brand */}
+      <div className="hidden lg:flex lg:w-[45%] relative overflow-hidden items-center justify-center">
+        {/* Animated mesh background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/90 to-primary/70" />
+        <div className="absolute inset-0">
+          <div className="absolute top-[-20%] left-[-10%] w-[70%] h-[70%] rounded-full bg-accent/20 blur-[100px] animate-pulse" />
+          <div className="absolute bottom-[-20%] right-[-15%] w-[60%] h-[60%] rounded-full bg-info/15 blur-[100px]" />
+          <div className="absolute top-[40%] right-[20%] w-[30%] h-[30%] rounded-full bg-white/5 blur-[60px]" />
+        </div>
+        
+        {/* Grid pattern */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
 
-        <div className="relative z-10 text-center space-y-8 max-w-md">
-          <div className="w-24 h-24 rounded-3xl bg-white/15 backdrop-blur-xl mx-auto flex items-center justify-center border border-white/20 shadow-2xl">
-            <Building2 className="w-12 h-12 text-white" />
-          </div>
-          <div>
-            <h1 className="text-4xl font-bold text-white tracking-tight">Gluck Global</h1>
-            <p className="text-white/70 mt-3 text-lg font-light">International Staffing & Training</p>
-          </div>
-          <div className="space-y-4 text-left">
-            {['Complete HR Management System', 'Employee & Freelancer Tracking', 'Automated Payroll & Documents'].map((feature, i) => (
-              <div key={i} className="flex items-center gap-3 text-white/80">
-                <div className="w-2 h-2 rounded-full bg-accent shrink-0" />
-                <span className="text-sm font-medium">{feature}</span>
+        <div className="relative z-10 px-12 max-w-lg">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: [0.23, 1, 0.32, 1] }}
+            className="space-y-10"
+          >
+            <div className="space-y-2">
+              <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-xl flex items-center justify-center border border-white/15 mb-6">
+                <span className="text-white font-extrabold text-lg">GG</span>
               </div>
-            ))}
-          </div>
-          <p className="text-white/40 text-xs pt-8">Peradeniya Road, Kandy, Sri Lanka</p>
+              <h1 className="text-5xl font-extrabold text-white tracking-tight leading-[1.1]">
+                Gluck Global
+              </h1>
+              <p className="text-white/50 text-lg font-light">
+                International Staffing & Training
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {features.map((f, i) => (
+                <motion.div
+                  key={f.label}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.4 + i * 0.1, duration: 0.5 }}
+                  className="flex items-center gap-4 p-3 rounded-xl bg-white/[0.06] border border-white/[0.08] backdrop-blur-sm"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+                    <f.icon className="w-5 h-5 text-white/80" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-white">{f.label}</p>
+                    <p className="text-xs text-white/40">{f.desc}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            <p className="text-white/25 text-xs">Peradeniya Road, Kandy, Sri Lanka</p>
+          </motion.div>
         </div>
       </div>
 
+      {/* Right panel — login form */}
       <div className="flex-1 flex items-center justify-center p-6 sm:p-12">
-        <div className="w-full max-w-[420px] space-y-8">
-          <div className="lg:hidden text-center">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-accent mx-auto flex items-center justify-center shadow-lg shadow-primary/20 mb-3">
-              <Building2 className="w-7 h-7 text-primary-foreground" />
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="w-full max-w-[400px] space-y-8"
+        >
+          {/* Mobile logo */}
+          <div className="lg:hidden text-center mb-4">
+            <div className="w-12 h-12 rounded-2xl bg-primary mx-auto flex items-center justify-center shadow-lg shadow-primary/25 mb-3">
+              <span className="text-primary-foreground font-extrabold text-sm">GG</span>
             </div>
-            <h1 className="text-xl font-bold text-foreground">Gluck Global</h1>
+            <h1 className="text-lg font-bold">Gluck Global</h1>
           </div>
 
           <div>
-            <h2 className="text-2xl font-bold text-foreground tracking-tight">Welcome back</h2>
-            <p className="text-muted-foreground mt-1.5 text-sm">Sign in to your HR portal (MongoDB backend)</p>
+            <h2 className="text-3xl font-extrabold tracking-tight">Welcome back</h2>
+            <p className="text-muted-foreground mt-2 text-sm">Enter your credentials to continue</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Email address</Label>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground">Email address</Label>
               <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@gluckglobal.com"
-                className="rounded-xl h-12 bg-secondary/50 border-border/50 focus:bg-background transition-colors"
+                className="rounded-xl h-12 bg-muted/50 border-border/50 focus:bg-card transition-all focus:shadow-lg focus:shadow-primary/5"
                 autoFocus
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Password</Label>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground">Password</Label>
               <div className="relative">
                 <Input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="rounded-xl h-12 pr-11 bg-secondary/50 border-border/50 focus:bg-background transition-colors"
+                  className="rounded-xl h-12 pr-11 bg-muted/50 border-border/50 focus:bg-card transition-all focus:shadow-lg focus:shadow-primary/5"
                 />
                 <button
                   type="button"
@@ -175,7 +193,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-12 rounded-xl text-sm font-semibold shadow-lg shadow-primary/25 gap-2.5 mt-2"
+              className="w-full h-12 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 gap-2.5"
             >
               {loading ? (
                 <span className="animate-spin w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full" />
@@ -185,29 +203,29 @@ export default function LoginPage() {
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
 
-            <div className="relative">
+            <div className="relative py-1">
               <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border/50" /></div>
-              <div className="relative flex justify-center text-xs"><span className="bg-card px-3 text-muted-foreground">or</span></div>
+              <div className="relative flex justify-center text-xs"><span className="bg-background px-3 text-muted-foreground">or</span></div>
             </div>
 
             <Button
               type="button"
               variant="outline"
-              className="w-full h-12 rounded-xl text-sm font-semibold gap-2.5 border-accent/30 hover:bg-accent/10"
+              className="w-full h-12 rounded-xl text-sm font-bold gap-2.5 border-primary/20 hover:bg-primary/5 hover:border-primary/40 transition-all"
               onClick={() => {
                 saveStoredAuth(DEMO_USER);
                 window.location.href = '/';
               }}
             >
-              <Zap className="w-4 h-4 text-accent" />
-              Demo Login (No Backend Needed)
+              <Zap className="w-4 h-4 text-primary" />
+              Demo Login
             </Button>
           </form>
 
-          <p className="text-xs text-center text-muted-foreground">
-            Demo mode bypasses the backend. For full features, run <code className="text-foreground">npm run dev:all</code> locally.
+          <p className="text-xs text-center text-muted-foreground/60">
+            Demo mode works without backend · Full features require local server
           </p>
-        </div>
+        </motion.div>
       </div>
     </div>
   );
