@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Download, Loader2, FileText, CheckCircle } from 'lucide-react';
+import JSZip from 'jszip';
 
 interface TemplateField {
   fieldName: string;
@@ -19,7 +20,31 @@ interface Template {
   name: string;
   description: string | null;
   original_file_name: string;
+  original_file_url: string;
   fields: TemplateField[];
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function replaceRedTextInXml(xml: string, fieldValues: Record<string, string>): string {
+  let result = xml;
+  for (const [placeholder, value] of Object.entries(fieldValues)) {
+    if (!value) continue;
+    const regex = new RegExp(
+      `(<w:r\\b[^>]*>)((?:<w:rPr>[\\s\\S]*?<w:color\\s+w:val=["'](?:FF0000|ff0000|C00000|c00000|ED1C24|ed1c24|FF3333|ff3333|CC0000|cc0000|990000|FF4444|ff4444|E60000|e60000)["'][\\s\\S]*?<\\/w:rPr>)[\\s\\S]*?)(<w:t[^>]*>)(${escapeRegex(placeholder)})(<\\/w:t>)`,
+      'g'
+    );
+    result = result.replace(regex, (_, runStart, rprContent, tStart, _text, tEnd) => {
+      const updatedRpr = rprContent.replace(
+        /<w:color\s+w:val=["'](?:FF0000|ff0000|C00000|c00000|ED1C24|ed1c24|FF3333|ff3333|CC0000|cc0000|990000|FF4444|ff4444|E60000|e60000)["']\s*\/>/gi,
+        '<w:color w:val="000000"/>'
+      );
+      return `${runStart}${updatedRpr}${tStart}${value}${tEnd}`;
+    });
+  }
+  return result;
 }
 
 export default function GenerateFromTemplate() {
@@ -31,7 +56,6 @@ export default function GenerateFromTemplate() {
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
   const [generating, setGenerating] = useState(false);
   const [documentName, setDocumentName] = useState('');
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchTemplate = async () => {
@@ -48,22 +72,18 @@ export default function GenerateFromTemplate() {
         return;
       }
 
-      const t = {
+      const t: Template = {
         ...data,
         fields: Array.isArray(data.fields) ? data.fields as TemplateField[] : [],
       };
       setTemplate(t);
       setDocumentName(`${t.name} - ${new Date().toLocaleDateString()}`);
 
-      // Pre-populate field values
       const initialValues: Record<string, string> = {};
-      t.fields.forEach((f: TemplateField) => {
-        initialValues[f.placeholder] = '';
-      });
+      t.fields.forEach((f: TemplateField) => { initialValues[f.placeholder] = ''; });
       setFieldValues(initialValues);
       setLoading(false);
     };
-
     fetchTemplate();
   }, [id]);
 
@@ -72,35 +92,42 @@ export default function GenerateFromTemplate() {
     setGenerating(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      // Decode base64 data URL to ArrayBuffer
+      const fileUrl = template.original_file_url;
+      let arrayBuffer: ArrayBuffer;
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-document`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            templateId: template.id,
-            fieldValues,
-            documentName,
-          }),
+      if (fileUrl.startsWith('data:')) {
+        const base64 = fileUrl.split(',')[1];
+        const binaryStr = atob(base64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
         }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Generation failed');
+        arrayBuffer = bytes.buffer;
+      } else {
+        const resp = await fetch(fileUrl);
+        arrayBuffer = await resp.arrayBuffer();
       }
 
-      // Get download URL from header or create blob
-      const url = response.headers.get('X-Download-Url');
-      if (url) setDownloadUrl(url);
+      // Parse and modify DOCX client-side
+      const zip = await JSZip.loadAsync(arrayBuffer);
 
-      // Also trigger download from blob
-      const blob = await response.blob();
+      // Process all XML parts (document, headers, footers)
+      const xmlFiles = ['word/document.xml'];
+      zip.forEach((path) => {
+        if (/^word\/(header|footer)\d*\.xml$/.test(path)) xmlFiles.push(path);
+      });
+
+      for (const xmlFile of xmlFiles) {
+        const content = await zip.file(xmlFile)?.async('string');
+        if (content) {
+          zip.file(xmlFile, replaceRedTextInXml(content, fieldValues));
+        }
+      }
+
+      const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+
+      // Download
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
@@ -140,7 +167,6 @@ export default function GenerateFromTemplate() {
       />
 
       <div className="glass-card rounded-2xl p-6 space-y-6">
-        {/* Template info */}
         <div className="flex items-center gap-3 p-3 rounded-xl bg-primary/5 border border-primary/10">
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
             <FileText className="w-5 h-5" />
@@ -153,7 +179,6 @@ export default function GenerateFromTemplate() {
           </div>
         </div>
 
-        {/* Document name */}
         <div>
           <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Output Document Name</Label>
           <Input
@@ -164,7 +189,6 @@ export default function GenerateFromTemplate() {
           />
         </div>
 
-        {/* Dynamic fields form */}
         {template.fields.length > 0 ? (
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
@@ -194,7 +218,6 @@ export default function GenerateFromTemplate() {
           </div>
         )}
 
-        {/* Generate button */}
         <div className="flex gap-2 pt-2">
           <Button variant="outline" onClick={() => navigate('/documents/templates')} className="rounded-xl">
             Cancel
@@ -211,21 +234,6 @@ export default function GenerateFromTemplate() {
             )}
           </Button>
         </div>
-
-        {downloadUrl && (
-          <div className="flex items-center gap-2 p-3 rounded-xl bg-success/5 border border-success/20">
-            <CheckCircle className="w-4 h-4 text-success" />
-            <p className="text-xs text-success font-medium">Document generated successfully!</p>
-            <a
-              href={downloadUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="ml-auto text-xs text-primary underline"
-            >
-              Download again
-            </a>
-          </div>
-        )}
       </div>
     </div>
   );
