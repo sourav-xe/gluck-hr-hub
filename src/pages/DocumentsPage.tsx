@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchGeneratedDocuments, deleteGeneratedDocument } from '@/lib/hrApi';
 import { fetchEmployees } from '@/lib/employeeService';
 import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import type { Employee, GeneratedDocument } from '@/types/hr';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,24 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Download, Eye, Trash2, FileText, LayoutTemplate } from 'lucide-react';
+import { Plus, Download, Eye, Trash2, FileText, LayoutTemplate, Loader2, Search, UserRound } from 'lucide-react';
+
+interface OnboardingDoc {
+  id?: string;
+  docType: string;
+  fileName: string;
+  label?: string;
+  uploadedAt?: string;
+}
+
+function base64ToBlob(base64: string, mimeType: string): Blob {
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  return new Blob([new Uint8Array(byteNumbers)], { type: mimeType });
+}
 
 export default function DocumentsPage() {
   const navigate = useNavigate();
