@@ -53,7 +53,7 @@ function fixBrokenAlignment(xml: string): string {
 }
 
 function replaceRedTextInXml(xml: string, fieldValues: Record<string, string>): string {
-  let result = fixDistributeAlignment(xml);
+  let result = fixBrokenAlignment(xml);
   for (const [placeholder, value] of Object.entries(fieldValues)) {
     if (!value) continue;
     const regex = new RegExp(
