@@ -127,7 +127,7 @@ serve(async (req) => {
       .insert({
         name: templateName,
         description,
-        original_file_url: urlData.publicUrl,
+        original_file_url: fileDataUrl,
         original_file_name: file.name,
         file_type: fileExt,
         fields: fields,
