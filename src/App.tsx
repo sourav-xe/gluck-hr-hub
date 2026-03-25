@@ -15,18 +15,24 @@ import DailyAttendance from "@/pages/DailyAttendance";
 import MyAttendance from "@/pages/MyAttendance";
 import LeaveList from "@/pages/LeaveList";
 import LeaveForm from "@/pages/LeaveForm";
+import RegularizationPage from "@/pages/RegularizationPage";
 import PayrollPage from "@/pages/PayrollPage";
 import PayslipView from "@/pages/PayslipView";
 import DocumentsPage from "@/pages/DocumentsPage";
 import DocumentGenerator from "@/pages/DocumentGenerator";
 import AutomationsPage from "@/pages/AutomationsPage";
+import DocumentAutomationHub from "@/pages/DocumentAutomationHub";
+import AnnouncementsPage from "@/pages/AnnouncementsPage";
 import SettingsPage from "@/pages/SettingsPage";
+import OnboardingPage from "@/pages/OnboardingPage";
+import MyProfilePage from "@/pages/MyProfilePage";
+import MyDocumentsPage from "@/pages/MyDocumentsPage";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
 
 function ProtectedRoutes() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, needsOnboarding } = useAuth();
 
   if (isLoading) {
     return (
@@ -45,6 +51,17 @@ function ProtectedRoutes() {
     return <Navigate to="/login" replace />;
   }
 
+  if (needsOnboarding) {
+    return (
+      <Routes>
+        <Route path="/complete-profile" element={<OnboardingPage />} />
+        <Route path="/complete_profile" element={<Navigate to="/complete-profile" replace />} />
+        <Route path="/onboarding" element={<Navigate to="/complete-profile" replace />} />
+        <Route path="*" element={<Navigate to="/complete-profile" replace />} />
+      </Routes>
+    );
+  }
+
   return (
     <AppLayout>
       <Routes>
@@ -53,16 +70,21 @@ function ProtectedRoutes() {
         <Route path="/employees/new" element={<EmployeeForm />} />
         <Route path="/employees/:id" element={<EmployeeProfile />} />
         <Route path="/employees/:id/edit" element={<EmployeeForm />} />
+        <Route path="/my-profile" element={<MyProfilePage />} />
         <Route path="/attendance" element={<AttendancePage />} />
         <Route path="/attendance/daily" element={<DailyAttendance />} />
         <Route path="/my-attendance" element={<MyAttendance />} />
         <Route path="/leaves" element={<LeaveList />} />
         <Route path="/leaves/new" element={<LeaveForm />} />
+        <Route path="/regularization" element={<RegularizationPage />} />
         <Route path="/payroll" element={<PayrollPage />} />
         <Route path="/payroll/payslip/:id" element={<PayslipView />} />
         <Route path="/documents" element={<DocumentsPage />} />
+        <Route path="/my-documents" element={<MyDocumentsPage />} />
         <Route path="/documents/generate" element={<DocumentGenerator />} />
         <Route path="/automations" element={<AutomationsPage />} />
+        <Route path="/automations/documents/*" element={<DocumentAutomationHub />} />
+        <Route path="/announcements" element={<AnnouncementsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

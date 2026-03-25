@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { defaultAttendanceSettings } from '@/data/mockData';
-import { AttendanceSettings } from '@/types/hr';
+import { useState, useEffect } from 'react';
+import { defaultAttendanceSettings } from '@/lib/defaults';
+import { fetchAnnouncementSettings, fetchAttendanceSettings, postGoogleChatMessage, putAnnouncementSettings, putAttendanceSettings, triggerAnnouncement } from '@/lib/hrApi';
+import type { AttendanceSettings } from '@/types/hr';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,10 +11,24 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { Bell, Mail, MessageSquare, Save, Zap, Shield, Wifi, Plus, X, Clock } from 'lucide-react';
+import { Bell, Mail, MessageSquare, Save, Zap, Shield, Wifi, Plus, X, Clock, Send } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+
+function monthDayToInputDate(monthDay: string): string {
+  if (!monthDay || !/^\d{2}-\d{2}$/.test(monthDay)) return '';
+  const y = new Date().getFullYear();
+  return `${y}-${monthDay}`;
+}
+
+function inputDateToMonthDay(input: string): string {
+  if (!input || !/^\d{4}-\d{2}-\d{2}$/.test(input)) return '';
+  return input.slice(5);
+}
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const { hasAccess } = useAuth();
+  const canManageGChat = hasAccess(['super_admin']);
 
   const [company, setCompany] = useState({
     name: 'Gluck Global',
@@ -25,7 +40,26 @@ export default function SettingsPage() {
   const [leavePolicy, setLeavePolicy] = useState({ annual: 14, sick: 7, casual: 5 });
 
   const [attendanceSettings, setAttendanceSettings] = useState<AttendanceSettings>({ ...defaultAttendanceSettings });
+  const [attendanceLoading, setAttendanceLoading] = useState(true);
+  const [attendanceSaving, setAttendanceSaving] = useState(false);
   const [newIP, setNewIP] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await fetchAttendanceSettings();
+        if (!cancelled) setAttendanceSettings(s);
+      } catch {
+        if (!cancelled) setAttendanceSettings({ ...defaultAttendanceSettings });
+      } finally {
+        if (!cancelled) setAttendanceLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [notifications, setNotifications] = useState({
     inAppToasts: true,
@@ -47,6 +81,55 @@ export default function SettingsPage() {
     attendanceReminder: 'Hi {name}, friendly reminder to mark your attendance for today. Please update your status before 10:00 AM.',
     birthday: 'Happy Birthday {name}! 🎂 Wishing you a wonderful year ahead from the Gluck Global family.',
   });
+
+  const [gchatMode, setGchatMode] = useState<'birthday' | 'announcement' | 'custom'>('birthday');
+  const [birthdayName, setBirthdayName] = useState('');
+  const [announcementTitle, setAnnouncementTitle] = useState('');
+  const [announcementBody, setAnnouncementBody] = useState('');
+  const [customMessage, setCustomMessage] = useState('');
+  const [gchatSending, setGchatSending] = useState(false);
+  const [announcementTab, setAnnouncementTab] = useState<'manual' | 'templates'>('manual');
+  const [announcementSettings, setAnnouncementSettings] = useState({
+    birthdayTemplate: templates.birthday,
+    festivalTemplate: 'Happy {festivalName}! ✨ Wishing everyone joy, health, and success.',
+    festivalName: '',
+    festivalMonthDay: '',
+    autoBirthdayEnabled: true,
+    autoFestivalEnabled: false,
+    lastBirthdayRunOn: '',
+    lastFestivalRunOn: '',
+  });
+  const [announcementLoading, setAnnouncementLoading] = useState(true);
+  const [announcementSaving, setAnnouncementSaving] = useState(false);
+  const [manualAnnouncementText, setManualAnnouncementText] = useState('');
+  const [manualBirthdayName, setManualBirthdayName] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await fetchAnnouncementSettings();
+        if (!cancelled) {
+          setAnnouncementSettings({
+            birthdayTemplate: s.birthdayTemplate,
+            festivalTemplate: s.festivalTemplate,
+            festivalName: s.festivalName,
+            festivalMonthDay: s.festivalMonthDay,
+            autoBirthdayEnabled: s.autoBirthdayEnabled,
+            autoFestivalEnabled: s.autoFestivalEnabled,
+            lastBirthdayRunOn: s.lastBirthdayRunOn || '',
+            lastFestivalRunOn: s.lastFestivalRunOn || '',
+          });
+          setTemplates((p) => ({ ...p, birthday: s.birthdayTemplate }));
+        }
+      } finally {
+        if (!cancelled) setAnnouncementLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const requestBrowserPermission = async () => {
     if (!('Notification' in window)) {
@@ -90,6 +173,79 @@ export default function SettingsPage() {
     setAttendanceSettings(p => ({ ...p, allowedIPs: p.allowedIPs.filter(i => i !== ip) }));
   };
 
+  const composeGoogleChatMessage = () => {
+    if (gchatMode === 'birthday') {
+      if (!birthdayName.trim()) return '';
+      return templates.birthday.replace('{name}', birthdayName.trim());
+    }
+    if (gchatMode === 'announcement') {
+      if (!announcementBody.trim()) return '';
+      const title = announcementTitle.trim() || 'Announcement';
+      return `📢 ${title}\n\n${announcementBody.trim()}`;
+    }
+    return customMessage.trim();
+  };
+
+  const handleSendGoogleChat = async () => {
+    const text = composeGoogleChatMessage();
+    if (!text) {
+      toast({ title: 'Missing message', description: 'Please fill template values or message text.', variant: 'destructive' });
+      return;
+    }
+    setGchatSending(true);
+    try {
+      const res = await postGoogleChatMessage(text);
+      if (!res.ok) {
+        toast({ title: 'Send failed', description: res.error || 'Could not send to Google Chat.', variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Message sent', description: 'Google Chat group received your message.' });
+    } finally {
+      setGchatSending(false);
+    }
+  };
+
+  const saveAnnouncementTemplates = async () => {
+    setAnnouncementSaving(true);
+    try {
+      const saved = await putAnnouncementSettings({
+        birthdayTemplate: announcementSettings.birthdayTemplate,
+        festivalTemplate: announcementSettings.festivalTemplate,
+        festivalName: announcementSettings.festivalName,
+        festivalMonthDay: announcementSettings.festivalMonthDay,
+        autoBirthdayEnabled: announcementSettings.autoBirthdayEnabled,
+        autoFestivalEnabled: announcementSettings.autoFestivalEnabled,
+      });
+      setAnnouncementSettings((p) => ({ ...p, ...saved }));
+      setTemplates((p) => ({ ...p, birthday: saved.birthdayTemplate }));
+      toast({ title: 'Saved', description: 'Announcement templates saved.' });
+    } catch {
+      toast({ title: 'Save failed', description: 'Could not save announcement templates.', variant: 'destructive' });
+    } finally {
+      setAnnouncementSaving(false);
+    }
+  };
+
+  const runManualTrigger = async (mode: 'manual' | 'birthday' | 'festival') => {
+    setAnnouncementSaving(true);
+    try {
+      const payload =
+        mode === 'manual'
+          ? { mode, message: manualAnnouncementText }
+          : mode === 'birthday'
+          ? { mode, name: manualBirthdayName }
+          : { mode, festivalName: announcementSettings.festivalName };
+      const r = await triggerAnnouncement(payload);
+      if (!r.ok) {
+        toast({ title: 'Send failed', description: r.error || 'Could not trigger message.', variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Sent to Google Chat', description: `Delivered ${r.sentCount ?? 0} message(s).` });
+    } finally {
+      setAnnouncementSaving(false);
+    }
+  };
+
   return (
     <div className="animate-fade-in">
       <PageHeader title="Settings" description="Configure system settings" />
@@ -101,6 +257,7 @@ export default function SettingsPage() {
           <TabsTrigger value="salary" className="rounded-lg text-xs font-semibold">Salary</TabsTrigger>
           <TabsTrigger value="attendance" className="rounded-lg text-xs font-semibold">Attendance</TabsTrigger>
           <TabsTrigger value="notifications" className="rounded-lg text-xs font-semibold">Notifications</TabsTrigger>
+          <TabsTrigger value="announcements" className="rounded-lg text-xs font-semibold">Announcements</TabsTrigger>
         </TabsList>
 
         <TabsContent value="company">
@@ -177,6 +334,9 @@ export default function SettingsPage() {
 
         <TabsContent value="attendance">
           <div className="space-y-6 max-w-2xl">
+            {attendanceLoading && (
+              <p className="text-sm text-muted-foreground">Loading attendance settings…</p>
+            )}
             {/* IP Restriction */}
             <div className="glass-card rounded-2xl p-6">
               <h3 className="font-bold text-sm mb-5 flex items-center gap-2"><Shield className="w-4 h-4 text-primary" /> IP-Based Location Restriction</h3>
@@ -261,14 +421,205 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <Button onClick={() => toast({ title: '✅ Saved', description: 'Attendance settings updated.' })} className="rounded-xl gap-2">
-              <Save className="w-4 h-4" /> Save Attendance Settings
+            <Button
+              disabled={attendanceLoading || attendanceSaving}
+              onClick={async () => {
+                setAttendanceSaving(true);
+                try {
+                  const s = await putAttendanceSettings(attendanceSettings);
+                  setAttendanceSettings(s);
+                  toast({ title: 'Saved', description: 'Attendance settings updated.' });
+                } catch {
+                  toast({ title: 'Save failed', description: 'Could not save attendance settings.', variant: 'destructive' });
+                } finally {
+                  setAttendanceSaving(false);
+                }
+              }}
+              className="rounded-xl gap-2"
+            >
+              <Save className="w-4 h-4" /> {attendanceSaving ? 'Saving…' : 'Save Attendance Settings'}
             </Button>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="announcements">
+          <div className="space-y-6 max-w-3xl">
+            {!canManageGChat && (
+              <div className="glass-card rounded-2xl p-6">
+                <p className="text-sm text-muted-foreground">Only Super Admin can manage announcements.</p>
+              </div>
+            )}
+            {canManageGChat && (
+              <div className="glass-card rounded-2xl p-6 space-y-5">
+                <h3 className="font-bold text-sm flex items-center gap-2"><MessageSquare className="w-4 h-4 text-primary" /> Announcements to Google Chat</h3>
+                <Tabs value={announcementTab} onValueChange={(v) => setAnnouncementTab(v as 'manual' | 'templates')}>
+                  <TabsList className="rounded-xl bg-muted/50 p-1 h-auto">
+                    <TabsTrigger value="manual" className="rounded-lg text-xs font-semibold">Manual</TabsTrigger>
+                    <TabsTrigger value="templates" className="rounded-lg text-xs font-semibold">Templates</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="manual" className="pt-4 space-y-4">
+                    <div>
+                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Manual Announcement</Label>
+                      <Textarea value={manualAnnouncementText} onChange={(e) => setManualAnnouncementText(e.target.value)} rows={4} className="mt-1.5 rounded-xl text-sm" placeholder="Type custom announcement..." />
+                      <Button onClick={() => void runManualTrigger('manual')} disabled={announcementSaving} className="rounded-xl gap-2 mt-3">
+                        <Send className="w-4 h-4" /> Send Manual Message
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="rounded-xl border border-border/50 p-3">
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Birthday Trigger</Label>
+                        <Input value={manualBirthdayName} onChange={(e) => setManualBirthdayName(e.target.value)} className="mt-1.5 rounded-xl h-10" placeholder="Optional name (blank = all today's birthdays)" />
+                        <Button variant="outline" onClick={() => void runManualTrigger('birthday')} disabled={announcementSaving} className="rounded-xl mt-3 h-9 text-xs">Trigger Birthday Template</Button>
+                      </div>
+                      <div className="rounded-xl border border-border/50 p-3">
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Festival Trigger</Label>
+                        <Input value={announcementSettings.festivalName} onChange={(e) => setAnnouncementSettings((p) => ({ ...p, festivalName: e.target.value }))} className="mt-1.5 rounded-xl h-10" placeholder="Festival name" />
+                        <Button variant="outline" onClick={() => void runManualTrigger('festival')} disabled={announcementSaving} className="rounded-xl mt-3 h-9 text-xs">Trigger Festival Template</Button>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="templates" className="pt-4 space-y-4">
+                    {announcementLoading ? (
+                      <p className="text-sm text-muted-foreground">Loading templates…</p>
+                    ) : (
+                      <>
+                        <div>
+                          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Birthday Template</Label>
+                          <p className="text-[10px] text-muted-foreground mb-1">Variable: {'{name}'}</p>
+                          <Textarea
+                            value={announcementSettings.birthdayTemplate}
+                            onChange={(e) => setAnnouncementSettings((p) => ({ ...p, birthdayTemplate: e.target.value }))}
+                            rows={3}
+                            className="rounded-xl text-sm"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Festival Template</Label>
+                          <p className="text-[10px] text-muted-foreground mb-1">Variable: {'{festivalName}'}</p>
+                          <Textarea
+                            value={announcementSettings.festivalTemplate}
+                            onChange={(e) => setAnnouncementSettings((p) => ({ ...p, festivalTemplate: e.target.value }))}
+                            rows={3}
+                            className="rounded-xl text-sm"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Festival Name</Label>
+                            <Input value={announcementSettings.festivalName} onChange={(e) => setAnnouncementSettings((p) => ({ ...p, festivalName: e.target.value }))} className="mt-1.5 rounded-xl h-10" />
+                          </div>
+                          <div>
+                            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Festival Date</Label>
+                            <Input
+                              type="date"
+                              value={monthDayToInputDate(announcementSettings.festivalMonthDay)}
+                              onChange={(e) => setAnnouncementSettings((p) => ({ ...p, festivalMonthDay: inputDateToMonthDay(e.target.value) }))}
+                              className="mt-1.5 rounded-xl h-10 pr-10 [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:invert"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="flex items-center justify-between rounded-xl bg-muted/30 p-3">
+                            <div>
+                              <p className="text-sm font-semibold">Auto Birthday Trigger</p>
+                              <p className="text-xs text-muted-foreground">Runs daily and sends birthday wishes to GChat</p>
+                            </div>
+                            <Switch checked={announcementSettings.autoBirthdayEnabled} onCheckedChange={(v) => setAnnouncementSettings((p) => ({ ...p, autoBirthdayEnabled: v }))} />
+                          </div>
+                          <div className="flex items-center justify-between rounded-xl bg-muted/30 p-3">
+                            <div>
+                              <p className="text-sm font-semibold">Auto Festival Trigger</p>
+                              <p className="text-xs text-muted-foreground">Runs on configured festival date and sends to GChat</p>
+                            </div>
+                            <Switch checked={announcementSettings.autoFestivalEnabled} onCheckedChange={(v) => setAnnouncementSettings((p) => ({ ...p, autoFestivalEnabled: v }))} />
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Last auto run — Birthday: {announcementSettings.lastBirthdayRunOn || 'never'}, Festival: {announcementSettings.lastFestivalRunOn || 'never'}
+                        </div>
+                        <Button onClick={() => void saveAnnouncementTemplates()} disabled={announcementSaving} className="rounded-xl gap-2">
+                          <Save className="w-4 h-4" /> {announcementSaving ? 'Saving…' : 'Save Templates'}
+                        </Button>
+                      </>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </div>
+            )}
           </div>
         </TabsContent>
 
         <TabsContent value="notifications">
           <div className="space-y-6 max-w-3xl">
+            <div className="glass-card rounded-2xl p-6">
+              <h3 className="font-bold text-sm mb-5 flex items-center gap-2"><MessageSquare className="w-4 h-4 text-primary" /> Google Chat Sender</h3>
+              {!canManageGChat && (
+                <p className="text-sm text-muted-foreground">Only Super Admin can send Google Chat messages.</p>
+              )}
+              {canManageGChat && (
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Message Type</Label>
+                    <Select value={gchatMode} onValueChange={(v) => setGchatMode(v as 'birthday' | 'announcement' | 'custom')}>
+                      <SelectTrigger className="mt-1.5 rounded-xl h-10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="birthday">Birthday Wish</SelectItem>
+                        <SelectItem value="announcement">Announcement</SelectItem>
+                        <SelectItem value="custom">Custom Message</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {gchatMode === 'birthday' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Employee Name</Label>
+                        <Input value={birthdayName} onChange={(e) => setBirthdayName(e.target.value)} className="mt-1.5 rounded-xl h-10" placeholder="e.g. Sourav" />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Template</Label>
+                        <Textarea value={templates.birthday} onChange={e => setTemplates(p => ({ ...p, birthday: e.target.value }))} rows={2} className="mt-1.5 rounded-xl text-sm" />
+                      </div>
+                    </div>
+                  )}
+
+                  {gchatMode === 'announcement' && (
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Announcement Title</Label>
+                        <Input value={announcementTitle} onChange={(e) => setAnnouncementTitle(e.target.value)} className="mt-1.5 rounded-xl h-10" placeholder="Office Update" />
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Announcement Message</Label>
+                        <Textarea value={announcementBody} onChange={(e) => setAnnouncementBody(e.target.value)} rows={3} className="mt-1.5 rounded-xl text-sm" placeholder="Write your announcement..." />
+                      </div>
+                    </div>
+                  )}
+
+                  {gchatMode === 'custom' && (
+                    <div>
+                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Custom Message</Label>
+                      <Textarea value={customMessage} onChange={(e) => setCustomMessage(e.target.value)} rows={4} className="mt-1.5 rounded-xl text-sm" placeholder="Type any message to send to Google Chat group..." />
+                    </div>
+                  )}
+
+                  <div className="rounded-xl border border-border/50 bg-muted/20 p-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Preview</p>
+                    <p className="text-sm whitespace-pre-wrap">{composeGoogleChatMessage() || 'Your message preview appears here...'}</p>
+                  </div>
+
+                  <Button onClick={handleSendGoogleChat} disabled={gchatSending} className="rounded-xl gap-2">
+                    <Send className="w-4 h-4" /> {gchatSending ? 'Sending…' : 'Send to Google Chat'}
+                  </Button>
+                </div>
+              )}
+            </div>
+
             <div className="glass-card rounded-2xl p-6">
               <h3 className="font-bold text-sm mb-5 flex items-center gap-2"><Bell className="w-4 h-4 text-primary" /> Notification Channels</h3>
               <div className="space-y-4">
@@ -308,7 +659,7 @@ export default function SettingsPage() {
                     <Mail className="w-4 h-4 text-muted-foreground" />
                     <div>
                       <p className="text-sm font-semibold">Email Notifications</p>
-                      <p className="text-xs text-muted-foreground">Send email notifications (powered by Lovable Cloud)</p>
+                      <p className="text-xs text-muted-foreground">Send email notifications (configure SMTP in production)</p>
                     </div>
                   </div>
                   <Switch checked={notifications.emailNotifications} onCheckedChange={v => setNotifications(p => ({ ...p, emailNotifications: v }))} />

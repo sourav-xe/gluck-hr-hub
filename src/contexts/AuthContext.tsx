@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { UserRole } from '@/types/hr';
-import type { User, Session } from '@supabase/supabase-js';
+import { apiFetch, clearStoredAuth, loadStoredAuth, saveStoredAuth, type StoredAuth } from '@/lib/api';
 
 interface AuthUser {
   id: string;
@@ -9,100 +8,110 @@ interface AuthUser {
   email: string;
   role: UserRole;
   employeeId?: string;
-  authUser?: User;
+  onboardingComplete?: boolean | null;
+  needsOnboarding?: boolean;
 }
 
 interface AuthContextType {
   user: AuthUser;
-  session: Session | null;
+  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  setRole: (role: UserRole) => void;
+  needsOnboarding: boolean;
   hasAccess: (allowedRoles: UserRole[]) => boolean;
   signOut: () => Promise<void>;
+  refreshAuth: () => Promise<void>;
 }
-
-// Demo role users for when no real auth
-const roleUsers: Record<UserRole, AuthUser> = {
-  super_admin: { id: 'u1', name: 'Admin User', email: 'admin@gluckglobal.com', role: 'super_admin' },
-  hr_manager: { id: 'u2', name: 'Ashan Perera', email: 'ashan@gluckglobal.com', role: 'hr_manager', employeeId: '1' },
-  reporting_manager: { id: 'u3', name: 'Ashan Perera', email: 'ashan@gluckglobal.com', role: 'reporting_manager', employeeId: '1' },
-  employee: { id: 'u4', name: 'Dilini Fernando', email: 'dilini@gluckglobal.com', role: 'employee', employeeId: '2' },
-  freelancer_intern: { id: 'u5', name: 'Rajan Nair', email: 'rajan@gluckglobal.com', role: 'freelancer_intern', employeeId: '3' },
-};
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function mapApiUser(u: StoredAuth['user']): AuthUser {
+  const raw = u as Record<string, unknown>;
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role: (u.role as UserRole) || 'employee',
+    employeeId: u.employeeId,
+    onboardingComplete: raw.onboardingComplete as boolean | null | undefined,
+    needsOnboarding: raw.needsOnboarding as boolean | undefined,
+  };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [role, setRoleState] = useState<UserRole>('super_admin');
   const [authUserData, setAuthUserData] = useState<AuthUser | null>(null);
 
-  useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session?.user) {
-        // Use user metadata for profile info
-        const meta = session.user.user_metadata;
-        setAuthUserData({
-          id: session.user.id,
-          name: meta?.full_name || session.user.email?.split('@')[0] || 'User',
-          email: session.user.email || '',
-          role: (meta?.app_role as UserRole) || 'employee',
-          employeeId: meta?.employee_id,
-          authUser: session.user,
-        });
-      } else {
-        setAuthUserData(null);
-      }
-      setIsLoading(false);
-    });
-
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        const meta = session.user.user_metadata;
-        setAuthUserData({
-          id: session.user.id,
-          name: meta?.full_name || session.user.email?.split('@')[0] || 'User',
-          email: session.user.email || '',
-          role: (meta?.app_role as UserRole) || 'employee',
-          employeeId: meta?.employee_id,
-          authUser: session.user,
-        });
-      }
-      setIsLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const isAuthenticated = !!session;
-
-  // If authenticated, use real user data; otherwise use demo role
-  const user = authUserData || roleUsers[role];
-
-  const setRole = (r: UserRole) => {
-    setRoleState(r);
-    // If authenticated, also update user_metadata role for demo switching
-    if (authUserData) {
-      setAuthUserData(prev => prev ? { ...prev, role: r } : prev);
+  const fetchAndSetMe = async (storedToken: string) => {
+    const res = await apiFetch('/api/auth/me');
+    if (res.status === 401) {
+      clearStoredAuth();
+      setToken(null);
+      setAuthUserData(null);
+      return;
+    }
+    if (!res.ok) return;
+    const data = await res.json();
+    const u = data.user as StoredAuth['user'];
+    if (u) {
+      const next = { token: storedToken, user: u };
+      saveStoredAuth(next);
+      setAuthUserData(mapApiUser(u));
     }
   };
 
-  const hasAccess = (allowedRoles: UserRole[]) => allowedRoles.includes(user.role);
+  useEffect(() => {
+    const stored = loadStoredAuth();
+    if (!stored?.token) {
+      setToken(null);
+      setAuthUserData(null);
+      setIsLoading(false);
+      return;
+    }
+
+    setToken(stored.token);
+    setAuthUserData(mapApiUser(stored.user));
+
+    fetchAndSetMe(stored.token)
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const isAuthenticated = !!token && !!authUserData;
+
+  const user = authUserData ?? {
+    id: '',
+    name: '',
+    email: '',
+    role: 'employee' as UserRole,
+  };
+
+  // Prefer server flag, but keep a strict fallback for self-service roles.
+  const role = String(user.role || '').toLowerCase();
+  const selfServiceRole = role === 'employee' || role === 'freelancer_intern' || role === 'reporting_manager';
+  const needsOnboarding =
+    isAuthenticated &&
+    (Boolean((user as AuthUser).needsOnboarding) || (selfServiceRole && user.onboardingComplete !== true));
+
+  const hasAccess = (allowedRoles: UserRole[]) =>
+    isAuthenticated && allowedRoles.includes(user.role);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    clearStoredAuth();
+    setToken(null);
     setAuthUserData(null);
-    setSession(null);
+  };
+
+  const refreshAuth = async () => {
+    const stored = loadStoredAuth();
+    if (stored?.token) {
+      await fetchAndSetMe(stored.token).catch(() => {});
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isAuthenticated, isLoading, setRole, hasAccess, signOut }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated, isLoading, needsOnboarding, hasAccess, signOut, refreshAuth }}>
       {children}
     </AuthContext.Provider>
   );

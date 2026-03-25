@@ -1,18 +1,45 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { employees as mockEmployees, attendanceRecords, leaveRequests, payrollRecords, generatedDocuments, leaveBalances } from '@/data/mockData';
 import { fetchEmployeeById } from '@/lib/employeeService';
-import { Employee } from '@/types/hr';
+import {
+  fetchAttendanceRecords,
+  fetchLeaveRequests,
+  fetchPayrollRecords,
+  fetchGeneratedDocuments,
+  fetchLeaveBalances,
+} from '@/lib/hrApi';
+import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import type { Employee, AttendanceRecord, LeaveRequest, PayrollRecord, GeneratedDocument, LeaveBalance } from '@/types/hr';
 import StatusBadge from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Edit, FileDown, Mail, Phone, MapPin, Building, Calendar, Briefcase, CreditCard, User, Globe, Shield, Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Edit, FileDown, Mail, Phone, MapPin, Building, Calendar, Briefcase, CreditCard, User, Globe, Shield, Loader2, ClipboardList, CheckCircle2, RotateCcw, Download } from 'lucide-react';
+
+/** Default annual caps (align with Settings leave policy defaults) */
+const LEAVE_CAP = { annual: 14, sick: 7, casual: 5 };
+
+type OnboardingDoc = {
+  id?: string;
+  docType: string;
+  label: string;
+  fileName: string;
+  uploadedAt?: string;
+};
 
 function calcTenure(joiningDate: string) {
-  const parts = joiningDate.split('/');
-  if (parts.length !== 3) return 'N/A';
-  const joined = new Date(+parts[2], +parts[1] - 1, +parts[0]);
+  const v = String(joiningDate || '').trim();
+  if (!v) return 'N/A';
+  let joined: Date;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    joined = new Date(v);
+  } else {
+    const parts = v.split('/');
+    if (parts.length !== 3) return 'N/A';
+    joined = new Date(+parts[2], +parts[1] - 1, +parts[0]);
+  }
   if (isNaN(joined.getTime())) return 'N/A';
   const now = new Date();
   const months = (now.getFullYear() - joined.getFullYear()) * 12 + (now.getMonth() - joined.getMonth());
@@ -24,24 +51,91 @@ function calcTenure(joiningDate: string) {
 export default function EmployeeProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { hasAccess } = useAuth();
+  const { toast } = useToast();
+  const canManage = hasAccess(['super_admin', 'hr_manager']);
+
   const [emp, setEmp] = useState<Employee | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
+  const [managerName, setManagerName] = useState<string>('—');
+  const [empAttendance, setEmpAttendance] = useState<AttendanceRecord[]>([]);
+  const [empLeaves, setEmpLeaves] = useState<LeaveRequest[]>([]);
+  const [empPayroll, setEmpPayroll] = useState<PayrollRecord[]>([]);
+  const [allGeneratedDocs, setAllGeneratedDocs] = useState<GeneratedDocument[]>([]);
+  const [balance, setBalance] = useState<LeaveBalance | undefined>(undefined);
+  const [onboardingResetting, setOnboardingResetting] = useState(false);
+  const [onboardingDocs, setOnboardingDocs] = useState<OnboardingDoc[]>([]);
+  const [downloadingDoc, setDownloadingDoc] = useState<string | null>(null);
 
   useEffect(() => {
-    // Try mock first, then DB
-    const mock = mockEmployees.find(e => e.id === id);
-    if (mock) {
-      setEmp(mock);
+    if (!id) {
       setLoading(false);
-    } else if (id) {
-      fetchEmployeeById(id).then(dbEmp => {
-        setEmp(dbEmp);
-        setLoading(false);
-      });
-    } else {
-      setLoading(false);
+      setEmp(null);
+      return;
     }
+    setLoading(true);
+    fetchEmployeeById(id).then((dbEmp) => {
+      setEmp(dbEmp);
+      setLoading(false);
+    });
   }, [id]);
+
+  useEffect(() => {
+    if (!id || !canManage) {
+      setOnboardingDocs([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/onboarding/documents?employeeId=${encodeURIComponent(id)}`);
+        if (!res.ok) return;
+        const docs = await res.json();
+        if (!cancelled) setOnboardingDocs(Array.isArray(docs) ? docs : []);
+      } catch {
+        if (!cancelled) setOnboardingDocs([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, canManage]);
+
+  useEffect(() => {
+    if (!emp?.reportingManagerId) {
+      setManagerName('—');
+      return;
+    }
+    const mid = emp.reportingManagerId;
+    fetchEmployeeById(mid).then((m) => setManagerName(m?.fullName || '—'));
+  }, [emp]);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      const [att, leaves, payroll, docs, balances] = await Promise.all([
+        fetchAttendanceRecords(),
+        fetchLeaveRequests(),
+        fetchPayrollRecords(),
+        fetchGeneratedDocuments(),
+        fetchLeaveBalances(),
+      ]);
+      if (cancelled) return;
+      setEmpAttendance(att.filter((a) => a.employeeId === id).slice(0, 20));
+      setEmpLeaves(leaves.filter((l) => l.employeeId === id));
+      setEmpPayroll(payroll.filter((p) => p.employeeId === id));
+      setBalance(balances.find((x) => x.employeeId === id));
+      setAllGeneratedDocs(docs);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  const empDocs = allGeneratedDocs.filter(
+    (d) => d.linkedTo === id || (emp != null && d.linkedTo === emp.fullName)
+  );
 
   if (loading) return (
     <div className="flex items-center justify-center py-16 gap-2 text-muted-foreground">
@@ -56,16 +150,94 @@ export default function EmployeeProfile() {
     </div>
   );
 
-  const empAttendance = attendanceRecords.filter(a => a.employeeId === id).slice(0, 20);
-  const empLeaves = leaveRequests.filter(l => l.employeeId === id);
-  const empPayroll = payrollRecords.filter(p => p.employeeId === id);
-  const empDocs = generatedDocuments.filter(d => d.linkedTo === emp.fullName);
-  const balance = leaveBalances.find(b => b.employeeId === id);
-  const manager = emp.reportingManagerId ? mockEmployees.find(e => e.id === emp.reportingManagerId) : undefined;
   const tenure = calcTenure(emp.joiningDate);
   const padId = typeof emp.id === 'string' && emp.id.length <= 5 ? emp.id.padStart(3, '0') : emp.id.slice(0, 8);
-  const joiningYear = (() => { try { return new Date(emp.joiningDate.split('/').reverse().join('-')).getFullYear(); } catch { return ''; } })();
+  const joiningYear = (() => {
+    try {
+      const raw = String(emp.joiningDate || '').trim();
+      if (!raw) return '';
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return new Date(raw).getFullYear();
+      return new Date(raw.split('/').reverse().join('-')).getFullYear();
+    } catch {
+      return '';
+    }
+  })();
   const empId = `GG-${joiningYear}-${padId}`;
+
+  const onboardingStatus = (emp as unknown as Record<string, unknown>).onboardingComplete;
+  const onboardingDone = onboardingStatus === true;
+  const onboardingPending = onboardingStatus === false;
+
+  async function resetOnboarding() {
+    if (!id) return;
+    setOnboardingResetting(true);
+    try {
+      const res = await apiFetch(`/api/employees/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ onboardingComplete: false, onboardingStep: 0 }),
+      });
+      if (!res.ok) {
+        toast({ title: 'Failed to reset onboarding', variant: 'destructive' });
+        return;
+      }
+      const updated = await res.json();
+      setEmp(updated);
+      toast({ title: 'Onboarding reset', description: `${emp.fullName} will be shown the onboarding wizard on next login.` });
+    } catch {
+      toast({ title: 'Request failed', variant: 'destructive' });
+    } finally {
+      setOnboardingResetting(false);
+    }
+  }
+
+  async function markOnboardingComplete() {
+    if (!id) return;
+    setOnboardingResetting(true);
+    try {
+      const res = await apiFetch(`/api/employees/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ onboardingComplete: true }),
+      });
+      if (!res.ok) { toast({ title: 'Failed', variant: 'destructive' }); return; }
+      const updated = await res.json();
+      setEmp(updated);
+      toast({ title: 'Marked as complete', description: `${emp.fullName} can now access the dashboard.` });
+    } catch {
+      toast({ title: 'Request failed', variant: 'destructive' });
+    } finally {
+      setOnboardingResetting(false);
+    }
+  }
+
+  async function downloadOnboardingDoc(docType: string) {
+    if (!id) return;
+    setDownloadingDoc(docType);
+    try {
+      const res = await apiFetch(`/api/onboarding/documents/${encodeURIComponent(docType)}/download?employeeId=${encodeURIComponent(id)}`);
+      if (!res.ok) {
+        toast({ title: 'Download failed', variant: 'destructive' });
+        return;
+      }
+      const payload = await res.json() as { fileName?: string; mimeType?: string; data?: string };
+      if (!payload?.data) {
+        toast({ title: 'File not found', variant: 'destructive' });
+        return;
+      }
+      const blob = await (await fetch(payload.data)).blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = payload.fileName || `${docType}.bin`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: 'Download failed', variant: 'destructive' });
+    } finally {
+      setDownloadingDoc(null);
+    }
+  }
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -100,13 +272,63 @@ export default function EmployeeProfile() {
                   <Briefcase className="w-3.5 h-3.5" /> {emp.jobTitle}
                 </p>
               </div>
-              <div className="flex gap-2 shrink-0">
+              <div className="flex flex-wrap gap-2 shrink-0 items-center">
+                {/* Onboarding status badge */}
+                {onboardingPending && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                    <ClipboardList className="w-3 h-3" /> Onboarding Pending
+                  </span>
+                )}
+                {onboardingDone && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                    <CheckCircle2 className="w-3 h-3" /> Onboarding Done
+                  </span>
+                )}
+
                 <Button variant="outline" onClick={() => navigate(`/employees/${id}/edit`)} className="gap-2 rounded-xl text-xs">
                   <Edit className="w-3.5 h-3.5" /> Edit Profile
                 </Button>
                 <Button className="gap-2 rounded-xl text-xs shadow-md shadow-primary/20">
                   <FileDown className="w-3.5 h-3.5" /> Export CV
                 </Button>
+
+                {/* HR onboarding controls */}
+                {canManage && onboardingDone && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={resetOnboarding}
+                    disabled={onboardingResetting}
+                    className="gap-1.5 rounded-xl text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                  >
+                    {onboardingResetting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                    Require Onboarding
+                  </Button>
+                )}
+                {canManage && onboardingPending && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={markOnboardingComplete}
+                    disabled={onboardingResetting}
+                    className="gap-1.5 rounded-xl text-xs border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                  >
+                    {onboardingResetting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                    Mark Complete
+                  </Button>
+                )}
+                {canManage && onboardingStatus === null && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={resetOnboarding}
+                    disabled={onboardingResetting}
+                    className="gap-1.5 rounded-xl text-xs"
+                  >
+                    {onboardingResetting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ClipboardList className="w-3.5 h-3.5" />}
+                    Send Onboarding
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -209,7 +431,7 @@ export default function EmployeeProfile() {
                   <SideItem label="Contract Type" value={emp.type} accent />
                   <SideItem label="Status" value={emp.status} accent />
                   <SideItem label="Joining Date" value={emp.joiningDate} />
-                  <SideItem label="Line Manager" value={manager?.fullName || '—'} accent={!!manager} />
+                  <SideItem label="Line Manager" value={managerName} accent={managerName !== '—'} />
                   <SideItem label="Salary Type" value={emp.salaryType} />
                 </div>
               </div>
@@ -224,9 +446,9 @@ export default function EmployeeProfile() {
                     </span>
                   </div>
                   <div className="space-y-3">
-                    <LeaveBar label="Annual" used={14 - balance.annual} total={14} color="bg-primary" />
-                    <LeaveBar label="Sick" used={7 - balance.sick} total={7} color="bg-info" />
-                    <LeaveBar label="Casual" used={7 - balance.casual} total={7} color="bg-accent" />
+                    <LeaveBar label="Annual" used={LEAVE_CAP.annual - balance.annual} total={LEAVE_CAP.annual} color="bg-primary" />
+                    <LeaveBar label="Sick" used={LEAVE_CAP.sick - balance.sick} total={LEAVE_CAP.sick} color="bg-info" />
+                    <LeaveBar label="Casual" used={LEAVE_CAP.casual - balance.casual} total={LEAVE_CAP.casual} color="bg-accent" />
                   </div>
                   <button
                     onClick={() => navigate('/leaves')}
@@ -311,11 +533,12 @@ export default function EmployeeProfile() {
                   <TableHead className="text-xs font-semibold uppercase">Deductions</TableHead>
                   <TableHead className="text-xs font-semibold uppercase">Net Pay</TableHead>
                   <TableHead className="text-xs font-semibold uppercase">Status</TableHead>
+                  <TableHead className="text-xs font-semibold uppercase w-24">View</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {empPayroll.length === 0 ? (
-                  <TableRow><TableCell colSpan={5} className="text-center py-12 text-muted-foreground">No payslips</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No payslips</TableCell></TableRow>
                 ) : empPayroll.map(p => (
                   <TableRow key={p.id} className="border-border/30">
                     <TableCell className="text-sm font-medium">{p.month} {p.year}</TableCell>
@@ -323,6 +546,11 @@ export default function EmployeeProfile() {
                     <TableCell className="text-sm font-mono text-destructive">-LKR {p.leaveDeductions.toLocaleString()}</TableCell>
                     <TableCell className="text-sm font-mono font-bold">LKR {p.netPayable.toLocaleString()}</TableCell>
                     <TableCell><StatusBadge status={p.status} /></TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="sm" className="h-8 text-xs rounded-lg" onClick={() => navigate(`/payroll/payslip/${p.id}`)}>
+                        Payslip
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -332,7 +560,44 @@ export default function EmployeeProfile() {
 
         {/* Documents Tab */}
         <TabsContent value="documents" className="mt-0">
-          <div className="glass-card rounded-2xl overflow-hidden">
+          <div className="space-y-4">
+            {canManage && (
+              <div className="glass-card rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Onboarding Documents Submitted By Employee
+                  </h4>
+                  <span className="text-xs text-muted-foreground">{onboardingDocs.length} file(s)</span>
+                </div>
+                <div className="space-y-2">
+                  {onboardingDocs.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No onboarding documents uploaded yet.</p>
+                  ) : onboardingDocs.map((d) => (
+                    <div key={d.id || `${d.docType}-${d.fileName}`} className="rounded-xl border border-border/50 bg-card/50 p-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{d.label || d.docType}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {d.fileName}
+                          {d.uploadedAt ? ` · ${new Date(d.uploadedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-lg text-xs gap-1.5"
+                        onClick={() => void downloadOnboardingDoc(d.docType)}
+                        disabled={downloadingDoc === d.docType}
+                      >
+                        {downloadingDoc === d.docType ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                        Download
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="glass-card rounded-2xl overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow className="border-border/50">
@@ -353,6 +618,7 @@ export default function EmployeeProfile() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           </div>
         </TabsContent>
       </Tabs>

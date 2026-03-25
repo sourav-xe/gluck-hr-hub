@@ -1,82 +1,104 @@
-import { supabase } from '@/integrations/supabase/client';
 import { Employee } from '@/types/hr';
-
-export interface DbEmployee {
-  id: string;
-  user_id: string | null;
-  full_name: string;
-  email: string;
-  phone: string;
-  type: string;
-  department: string;
-  job_title: string;
-  reporting_manager_id: string | null;
-  joining_date: string;
-  date_of_birth: string;
-  salary_type: string;
-  salary_amount: number;
-  bank_name: string;
-  account_number: string;
-  account_holder_name: string;
-  address: string;
-  nationality: string;
-  passport_number: string;
-  status: string;
-  avatar_url: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export function dbToEmployee(db: DbEmployee): Employee {
-  return {
-    id: db.id,
-    fullName: db.full_name,
-    email: db.email,
-    phone: db.phone,
-    type: db.type as Employee['type'],
-    department: db.department,
-    jobTitle: db.job_title,
-    reportingManagerId: db.reporting_manager_id || undefined,
-    joiningDate: db.joining_date,
-    dateOfBirth: db.date_of_birth,
-    salaryType: db.salary_type as Employee['salaryType'],
-    salaryAmount: db.salary_amount,
-    bankName: db.bank_name,
-    accountNumber: db.account_number,
-    accountHolderName: db.account_holder_name,
-    address: db.address,
-    nationality: db.nationality,
-    passportNumber: db.passport_number || undefined,
-    status: db.status as Employee['status'],
-    avatar: db.avatar_url || undefined,
-  };
-}
+import { apiFetch } from '@/lib/api';
 
 export async function fetchEmployees(): Promise<Employee[]> {
-  const { data, error } = await supabase
-    .from('employees')
-    .select('*')
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    console.error('Error fetching employees:', error);
+  try {
+    const res = await apiFetch('/api/employees');
+    if (!res.ok) {
+      console.error('Error fetching employees:', res.status);
+      return [];
+    }
+    const data = (await res.json()) as Employee[];
+    return Array.isArray(data) ? data : [];
+  } catch (e) {
+    console.error('Error fetching employees:', e);
     return [];
   }
-
-  return (data as unknown as DbEmployee[]).map(dbToEmployee);
 }
 
 export async function fetchEmployeeById(id: string): Promise<Employee | null> {
-  const { data, error } = await supabase
-    .from('employees')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  if (error) {
-    console.error('Error fetching employee:', error);
+  try {
+    const res = await apiFetch(`/api/employees/${id}`);
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      console.error('Error fetching employee:', res.status);
+      return null;
+    }
+    return (await res.json()) as Employee;
+  } catch (e) {
+    console.error('Error fetching employee:', e);
     return null;
   }
+}
 
-  return dbToEmployee(data as unknown as DbEmployee);
+export async function createEmployeeWithUser(payload: {
+  email: string;
+  password: string;
+  fullName: string;
+  app_role: string;
+  phone: string;
+  type: string;
+  department: string;
+  jobTitle: string;
+  reportingManagerId?: string;
+  joiningDate: string;
+  dateOfBirth?: string;
+  salaryType: string;
+  salaryAmount: number;
+  bankName?: string;
+  accountNumber?: string;
+  accountHolderName?: string;
+  address?: string;
+  nationality?: string;
+  passportNumber?: string;
+  status: string;
+  requiresOnboarding?: boolean;
+}): Promise<{ ok: true; employee: Employee } | { ok: false; error: string }> {
+  const res = await apiFetch('/api/employees', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { ok: false, error: (data as { error?: string }).error || res.statusText };
+  }
+  return { ok: true, employee: data as Employee };
+}
+
+export async function updateEmployee(
+  id: string,
+  payload: Partial<Employee> & { password?: string }
+): Promise<{ ok: true; employee: Employee } | { ok: false; error: string }> {
+  const body: Record<string, unknown> = {
+    fullName: payload.fullName,
+    email: payload.email,
+    phone: payload.phone,
+    type: payload.type,
+    department: payload.department,
+    jobTitle: payload.jobTitle,
+    reportingManagerId: payload.reportingManagerId ?? '',
+    joiningDate: payload.joiningDate,
+    dateOfBirth: payload.dateOfBirth,
+    salaryType: payload.salaryType,
+    salaryAmount: payload.salaryAmount,
+    bankName: payload.bankName,
+    accountNumber: payload.accountNumber,
+    accountHolderName: payload.accountHolderName,
+    address: payload.address,
+    nationality: payload.nationality,
+    passportNumber: payload.passportNumber,
+    status: payload.status,
+    avatar: payload.avatar,
+  };
+  if (payload.password) body.password = payload.password;
+
+  const res = await apiFetch(`/api/employees/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { ok: false, error: (data as { error?: string }).error || res.statusText };
+  }
+  return { ok: true, employee: data as Employee };
 }

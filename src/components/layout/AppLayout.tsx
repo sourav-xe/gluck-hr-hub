@@ -5,20 +5,23 @@ import { UserRole } from '@/types/hr';
 import ThemeToggle from '@/components/ThemeToggle';
 import {
   LayoutDashboard, Users, CalendarCheck, CalendarOff, DollarSign,
-  FileText, Zap, Settings, ChevronLeft, ChevronRight, Menu, X, Bell, LogOut
+  FileText, Zap, Settings, Megaphone, ChevronLeft, ChevronRight, Menu, X, Bell, LogOut, UserRound, FolderOpen, ClipboardCheck
 } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 
 const navItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard, roles: ['super_admin', 'hr_manager', 'reporting_manager', 'employee', 'freelancer_intern'] as UserRole[] },
   { title: 'Employees', url: '/employees', icon: Users, roles: ['super_admin', 'hr_manager', 'reporting_manager'] as UserRole[] },
+  { title: 'My Profile', url: '/my-profile', icon: UserRound, roles: ['reporting_manager', 'employee', 'freelancer_intern'] as UserRole[] },
   { title: 'Attendance', url: '/attendance', icon: CalendarCheck, roles: ['super_admin', 'hr_manager', 'reporting_manager'] as UserRole[] },
   { title: 'My Attendance', url: '/my-attendance', icon: CalendarCheck, roles: ['employee', 'freelancer_intern'] as UserRole[] },
   { title: 'Leave Mgmt', url: '/leaves', icon: CalendarOff, roles: ['super_admin', 'hr_manager', 'reporting_manager', 'employee'] as UserRole[] },
+  { title: 'Regularization', url: '/regularization', icon: ClipboardCheck, roles: ['super_admin', 'hr_manager', 'reporting_manager', 'employee', 'freelancer_intern'] as UserRole[] },
+  { title: 'My Documents', url: '/my-documents', icon: FolderOpen, roles: ['reporting_manager', 'employee', 'freelancer_intern'] as UserRole[] },
   { title: 'Payroll', url: '/payroll', icon: DollarSign, roles: ['super_admin', 'hr_manager'] as UserRole[] },
   { title: 'Documents', url: '/documents', icon: FileText, roles: ['super_admin', 'hr_manager'] as UserRole[] },
   { title: 'Automations', url: '/automations', icon: Zap, roles: ['super_admin', 'hr_manager'] as UserRole[] },
+  { title: 'Announcements', url: '/announcements', icon: Megaphone, roles: ['super_admin'] as UserRole[] },
   { title: 'Settings', url: '/settings', icon: Settings, roles: ['super_admin'] as UserRole[] },
 ];
 
@@ -31,7 +34,7 @@ const roleLabels: Record<UserRole, string> = {
 };
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user, setRole, hasAccess, signOut } = useAuth();
+  const { user, hasAccess, signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -52,25 +55,69 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <aside className={`
         fixed lg:sticky top-0 left-0 z-50 h-screen flex flex-col transition-all duration-300
-        bg-sidebar
-        ${collapsed ? 'w-[72px]' : 'w-[260px]'}
+        bg-sidebar w-[260px]
+        ${collapsed ? 'lg:w-[72px]' : ''}
         ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
-        <div className={`flex items-center h-16 px-4 ${collapsed ? 'justify-center' : ''}`}>
-          <div className="flex items-center gap-3">
+        <div className="lg:hidden relative flex items-center h-[4.25rem] px-3 border-b border-sidebar-border/70 shrink-0">
+          <div className="flex items-center gap-3 min-w-0 flex-1 pr-10">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sidebar-primary to-accent/80 flex items-center justify-center text-sidebar-primary-foreground font-bold text-sm shadow-lg shadow-accent/20 shrink-0">
+              GG
+            </div>
+            <div className="min-w-0">
+              <p className="font-bold text-sidebar-foreground text-sm tracking-tight truncate">Gluck Global</p>
+              <p className="text-[10px] text-sidebar-muted font-medium">HR Management</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMobileOpen(false)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 h-9 w-9 flex items-center justify-center rounded-xl text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/70 transition-colors"
+            aria-label="Close menu"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {collapsed ? (
+          <div className="hidden lg:flex flex-col items-center gap-2 py-3 px-2 border-b border-sidebar-border/70 shrink-0">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sidebar-primary to-accent/80 flex items-center justify-center text-sidebar-primary-foreground font-bold text-sm shadow-lg shadow-accent/20">
               GG
             </div>
-            {!collapsed && (
-              <div className="animate-fade-in">
-                <p className="font-bold text-sidebar-foreground text-sm tracking-tight">Gluck Global</p>
+            <button
+              type="button"
+              onClick={() => setCollapsed(false)}
+              className="h-8 w-8 flex items-center justify-center rounded-xl text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/70 border border-sidebar-border/50 transition-all"
+              title="Expand sidebar"
+              aria-expanded={false}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="hidden lg:flex relative items-center h-[4.25rem] px-3 border-b border-sidebar-border/70 shrink-0">
+            <div className="flex items-center gap-3 min-w-0 flex-1 pr-10">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sidebar-primary to-accent/80 flex items-center justify-center text-sidebar-primary-foreground font-bold text-sm shadow-lg shadow-accent/20 shrink-0">
+                GG
+              </div>
+              <div className="animate-fade-in min-w-0">
+                <p className="font-bold text-sidebar-foreground text-sm tracking-tight truncate">Gluck Global</p>
                 <p className="text-[10px] text-sidebar-muted font-medium">HR Management</p>
               </div>
-            )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setCollapsed(true)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-9 w-9 flex items-center justify-center rounded-xl text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/70 border border-transparent hover:border-sidebar-border/80 transition-all"
+              title="Collapse sidebar"
+              aria-expanded
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
           </div>
-        </div>
+        )}
 
-        <nav className="flex-1 py-3 overflow-y-auto">
+        <nav className="flex-1 py-3 overflow-y-auto min-h-0">
           <ul className="space-y-1 px-3">
             {visibleItems.map(item => (
               <li key={item.url}>
@@ -82,36 +129,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   onClick={() => setMobileOpen(false)}
                 >
                   <item.icon className="w-[18px] h-[18px] shrink-0" />
-                  {!collapsed && <span className="animate-fade-in">{item.title}</span>}
+                  <span className={collapsed ? 'animate-fade-in lg:hidden' : 'animate-fade-in'}>{item.title}</span>
                 </NavLink>
               </li>
             ))}
           </ul>
         </nav>
 
-        {/* Role switcher (demo) */}
-        {!collapsed && (
-          <div className="p-3 border-t border-sidebar-border animate-fade-in">
-            <p className="text-[10px] uppercase tracking-widest text-sidebar-muted mb-2 px-1 font-semibold">Demo Role</p>
-            <Select value={user.role} onValueChange={(v) => setRole(v as UserRole)}>
-              <SelectTrigger className="h-9 text-xs bg-sidebar-accent/50 border-sidebar-border text-sidebar-foreground rounded-xl">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(roleLabels).map(([k, v]) => (
-                  <SelectItem key={k} value={k} className="text-xs">{v}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="hidden lg:flex items-center justify-center h-11 border-t border-sidebar-border text-sidebar-muted hover:text-sidebar-foreground transition-colors"
-        >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-        </button>
+        <div className="shrink-0 p-3 border-t border-sidebar-border/70 bg-sidebar/95 backdrop-blur-sm">
+          <Button
+            variant="ghost"
+            className={`w-full h-11 rounded-xl text-sidebar-foreground/90 hover:text-sidebar-foreground hover:bg-sidebar-accent/70 border border-sidebar-border/40 justify-start gap-3 ${collapsed ? 'lg:justify-center lg:gap-0 lg:px-0' : ''}`}
+            onClick={() => {
+              setMobileOpen(false);
+              signOut();
+            }}
+          >
+            <LogOut className="w-[18px] h-[18px] shrink-0" />
+            <span className={`text-[13px] font-medium ${collapsed ? 'lg:hidden' : ''}`}>Log out</span>
+          </Button>
+        </div>
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
