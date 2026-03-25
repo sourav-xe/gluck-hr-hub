@@ -29,7 +29,7 @@ function escapeRegex(str: string): string {
 }
 
 function fixBrokenAlignment(xml: string): string {
-  // Fix distribute alignment globally
+  // Fix explicit distribute alignment globally
   let result = xml.replace(/<w:jc\s+w:val=["']distribute["']\s*\/>/gi, '<w:jc w:val="left"/>');
 
   // Normalize short bold / heading-like paragraphs that commonly break in PDF/preview renderers
@@ -40,20 +40,34 @@ function fixBrokenAlignment(xml: string): string {
     const hasTabRuns = /<w:tab\s*\/>/i.test(para);
 
     const textContent = (para.match(/<w:t[^>]*>[\s\S]*?<\/w:t>/g) || [])
-      .map((t) => t.replace(/<[^>]+>/g, ""))
-      .join("")
+      .map((t) => t.replace(/<[^>]+>/g, ''))
+      .join('')
+      .replace(/\s+/g, ' ')
       .trim();
 
-    const shouldNormalize = isHeadingStyle || (hasBold && (textContent.length < 120 || hasTabRuns));
+    const looksLikeShortHeading = /^([\d.]+\s*)?[A-Z][^.!?]{0,140}$/.test(textContent);
+    const shouldNormalize = isHeadingStyle || looksLikeShortHeading || (hasBold && (textContent.length < 120 || hasTabRuns || hasProblemAlignment));
     if (!shouldNormalize) return para;
 
     let updated = para;
 
-    // Short justified headings create huge inter-word gaps
+    // Replace explicit problematic alignments
     updated = updated.replace(/<w:jc\s+w:val=["'](?:both|distribute)["']\s*\/>/gi, '<w:jc w:val="left"/>');
 
     // Tabs inside heading lines become exaggerated gaps in some PDF/preview renderers
     updated = updated.replace(/<w:tab\s*\/>/gi, '<w:t xml:space="preserve"> </w:t>');
+
+    // If paragraph properties exist but no explicit alignment, inject left alignment to override style inheritance
+    if (/<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>/i.test(updated)) {
+      updated = updated.replace(/<w:pPr\b([^>]*)>([\s\S]*?)<\/w:pPr>/i, (match, attrs, content) => {
+        if (/<w:jc\b/i.test(content)) {
+          return `<w:pPr${attrs}>${content.replace(/<w:jc\s+w:val=["'](?:both|distribute)["']\s*\/>/gi, '<w:jc w:val="left"/>')}</w:pPr>`;
+        }
+        return `<w:pPr${attrs}>${content}<w:jc w:val="left"/></w:pPr>`;
+      });
+    } else {
+      updated = updated.replace(/<w:p\b([^>]*)>/i, '<w:p$1><w:pPr><w:jc w:val="left"/></w:pPr>');
+    }
 
     return updated;
   });
