@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      document_templates: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          fields: Json
+          file_type: string
+          id: string
+          name: string
+          original_file_name: string
+          original_file_url: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          fields?: Json
+          file_type?: string
+          id?: string
+          name: string
+          original_file_name: string
+          original_file_url: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          fields?: Json
+          file_type?: string
+          id?: string
+          name?: string
+          original_file_name?: string
+          original_file_url?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       employees: {
         Row: {
           account_holder_name: string | null
@@ -96,6 +135,44 @@ export type Database = {
             columns: ["reporting_manager_id"]
             isOneToOne: false
             referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generated_documents: {
+        Row: {
+          created_at: string | null
+          field_values: Json
+          generated_by: string | null
+          id: string
+          name: string
+          output_file_url: string | null
+          template_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          field_values?: Json
+          generated_by?: string | null
+          id?: string
+          name: string
+          output_file_url?: string | null
+          template_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          field_values?: Json
+          generated_by?: string | null
+          id?: string
+          name?: string
+          output_file_url?: string | null
+          template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generated_documents_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "document_templates"
             referencedColumns: ["id"]
           },
         ]
