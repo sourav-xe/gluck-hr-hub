@@ -28,9 +28,28 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function fixDistributeAlignment(xml: string): string {
-  // Remove "distribute" paragraph alignment that causes huge word gaps in headings
-  return xml.replace(/<w:jc\s+w:val=["']distribute["']\s*\/>/gi, '<w:jc w:val="left"/>');
+function fixBrokenAlignment(xml: string): string {
+  // Fix "distribute" alignment globally
+  let result = xml.replace(/<w:jc\s+w:val=["']distribute["']\s*\/>/gi, '<w:jc w:val="left"/>');
+  
+  // Fix "both" (justify) alignment only for bold heading paragraphs
+  // Match each paragraph block and check if it's a heading-like paragraph (all bold, or has heading style)
+  result = result.replace(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/g, (para) => {
+    const isHeadingStyle = /<w:pStyle\s+w:val=["']Heading/i.test(para);
+    const hasBold = /<w:b\s*\/?>|<w:b\s+w:val=["'](?:true|1)["']/i.test(para);
+    const hasJustify = /<w:jc\s+w:val=["']both["']\s*\/>/i.test(para);
+    
+    // Count text content length - short bold lines get stretched badly by justify
+    const textMatches = para.match(/<w:t[^>]*>([^<]*)<\/w:t>/g);
+    const totalText = textMatches ? textMatches.map(t => t.replace(/<[^>]+>/g, '')).join('').length : 0;
+    
+    if (hasJustify && (isHeadingStyle || (hasBold && totalText < 80))) {
+      return para.replace(/<w:jc\s+w:val=["']both["']\s*\/>/gi, '<w:jc w:val="left"/>');
+    }
+    return para;
+  });
+  
+  return result;
 }
 
 function replaceRedTextInXml(xml: string, fieldValues: Record<string, string>): string {
