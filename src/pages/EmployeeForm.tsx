@@ -254,7 +254,7 @@ export default function EmployeeForm() {
         requiresOnboarding: true,
       });
       if (!res.ok) {
-        toast({ title: 'Failed to create account', description: res.error, variant: 'destructive' });
+        toast({ title: 'Failed to create account', description: 'error' in res ? res.error : 'Unknown error', variant: 'destructive' });
         return;
       }
       setCreated({ name: createName.trim(), email: createEmail.trim().toLowerCase(), password: createPassword, role: createRole });
