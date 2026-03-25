@@ -27,7 +27,7 @@ export default function TemplateList() {
 
   const fetchTemplates = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('document_templates')
       .select('*')
       .order('created_at', { ascending: false });
