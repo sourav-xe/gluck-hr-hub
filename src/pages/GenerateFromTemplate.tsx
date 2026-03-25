@@ -35,6 +35,49 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function toTitleCase(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function normalizeToken(raw: string): string {
+  return String(raw || '')
+    .replace(/[_\-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getMeaningfulFieldLabel(field: TemplateField): string {
+  const source = normalizeToken(field.fieldName || field.placeholder || '');
+  if (!source) return 'Field';
+
+  const lower = source.toLowerCase();
+  if (/\b(date|dob|doj|joining)\b/.test(lower)) return 'Date';
+  if (/\b(candidate|employee|emp|name)\b/.test(lower)) return 'Candidate Name';
+  if (/\b(role|position|designation|title)\b/.test(lower)) return 'Role';
+  if (/\b(company|organization|org)\b/.test(lower)) return 'Company Name';
+  if (/\b(email|mail)\b/.test(lower)) return 'Email';
+  if (/\b(phone|mobile|contact)\b/.test(lower)) return 'Phone Number';
+  if (/\b(salary|amount|pay)\b/.test(lower)) return 'Amount';
+  if (/\b(location|city|state|country|address)\b/.test(lower)) return 'Location';
+
+  return toTitleCase(source);
+}
+
+function getMeaningfulInputPlaceholder(label: string): string {
+  const lower = label.toLowerCase();
+  if (lower.includes('date')) return 'Enter date';
+  if (lower.includes('name')) return 'Enter candidate name';
+  if (lower.includes('role') || lower.includes('designation') || lower.includes('title')) return 'Enter role';
+  if (lower.includes('company')) return 'Enter company name';
+  if (lower.includes('email')) return 'Enter email address';
+  if (lower.includes('phone')) return 'Enter phone number';
+  if (lower.includes('amount') || lower.includes('salary') || lower.includes('pay')) return 'Enter amount';
+  if (lower.includes('location') || lower.includes('city') || lower.includes('state') || lower.includes('country')) return 'Enter location';
+  return `Enter ${label.toLowerCase()}`;
+}
+
 function fixBrokenAlignment(xml: string): string {
   let result = xml.replace(/<w:jc\s+w:val=["']distribute["']\s*\/>/gi, '<w:jc w:val="left"/>');
 
@@ -447,11 +490,11 @@ export default function GenerateFromTemplate() {
 
             {template.fields.map((field, i) => (
               <div key={i}>
-                <Label className="text-xs text-muted-foreground">{field.fieldName}</Label>
+                <Label className="text-xs text-muted-foreground">{getMeaningfulFieldLabel(field)}</Label>
                 <Input
                   value={fieldValues[field.placeholder] || ''}
                   onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.placeholder]: e.target.value }))}
-                  placeholder={`Enter ${field.fieldName}`}
+                  placeholder={getMeaningfulInputPlaceholder(getMeaningfulFieldLabel(field))}
                   className="mt-1 rounded-xl h-10"
                   onFocus={() => setActivePlaceholder(field.placeholder)}
                 />

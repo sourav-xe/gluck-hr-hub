@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchEmployees } from '@/lib/employeeService';
+import { apiFetch } from '@/lib/api';
 import {
   fetchLeaveRequests,
   fetchAttendanceRecords,
@@ -19,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Download, Play, DollarSign, Eye, FileText, CheckCircle2, Loader2 } from 'lucide-react';
+import { Download, Play, DollarSign, Eye, FileText, CheckCircle2, Loader2, Pencil } from 'lucide-react';
 import type { LeaveRequest, AttendanceRecord } from '@/types/hr';
 
 const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -42,6 +43,77 @@ export default function PayrollPage() {
   const [confirmPayId, setConfirmPayId] = useState<string | null>(null);
   const [freelancerSessions, setFreelancerSessions] = useState<Record<string, number>>({});
   const [freelancerStatuses, setFreelancerStatuses] = useState<Record<string, 'Unpaid' | 'Paid'>>({});
+
+  // Payslip DOCX template (same storage as Auto-Docs: /api/doc-simple-templates)
+  const [payslipTemplatesLoading, setPayslipTemplatesLoading] = useState(false);
+  const [payslipTemplates, setPayslipTemplates] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedPayslipTemplateId, setSelectedPayslipTemplateId] = useState<string>('');
+  const [payslipTemplateFile, setPayslipTemplateFile] = useState<File | null>(null);
+  const [payslipTemplateUploading, setPayslipTemplateUploading] = useState(false);
+  const [payslipTemplateName, setPayslipTemplateName] = useState('Payslip Template');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setPayslipTemplatesLoading(true);
+      try {
+        const res = await apiFetch('/api/doc-simple-templates');
+        if (!res.ok) return;
+        const data = (await res.json()) as Array<{ id: string; name: string }>;
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : [];
+        setPayslipTemplates(list);
+        setSelectedPayslipTemplateId((prev) => prev || list[0]?.id || '');
+      } catch {
+        if (!cancelled) setPayslipTemplates([]);
+      } finally {
+        if (!cancelled) setPayslipTemplatesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const refreshPayslipTemplates = async () => {
+    setPayslipTemplatesLoading(true);
+    try {
+      const res = await apiFetch('/api/doc-simple-templates');
+      if (!res.ok) return;
+      const data = (await res.json()) as Array<{ id: string; name: string }>;
+      const list = Array.isArray(data) ? data : [];
+      setPayslipTemplates(list);
+      setSelectedPayslipTemplateId(list[0]?.id || '');
+    } finally {
+      setPayslipTemplatesLoading(false);
+    }
+  };
+
+  const handleUploadPayslipTemplate = async () => {
+    if (!payslipTemplateFile) {
+      toast({ title: 'Select a DOCX file', description: 'Upload a payslip template DOCX first.', variant: 'destructive' });
+      return;
+    }
+    setPayslipTemplateUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', payslipTemplateFile);
+      fd.append('templateName', (payslipTemplateName || 'Payslip Template').trim());
+      const res = await apiFetch('/api/doc-simple-templates', { method: 'POST', body: fd });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: 'Upload failed', description: data?.error || 'Server rejected upload.', variant: 'destructive' });
+        return;
+      }
+      toast({ title: 'Payslip template uploaded', description: 'Template saved. Use the doc icon to generate slips.' });
+      setPayslipTemplateFile(null);
+      await refreshPayslipTemplates();
+    } catch (e: unknown) {
+      toast({ title: 'Upload failed', description: (e as Error).message, variant: 'destructive' });
+    } finally {
+      setPayslipTemplateUploading(false);
+    }
+  };
 
   useEffect(() => {
     let cancel = false;
@@ -266,6 +338,67 @@ export default function PayrollPage() {
         </Select>
       </div>
 
+      <div className="glass-card rounded-2xl p-4 mb-6 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payslip DOCX Template</p>
+            <p className="text-sm text-muted-foreground mt-1">Upload template once, then doc icon downloads payslips with each employee’s data.</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground font-medium">Selected template</p>
+            <Select
+              value={selectedPayslipTemplateId}
+              onValueChange={setSelectedPayslipTemplateId}
+              disabled={payslipTemplatesLoading || payslipTemplates.length === 0 || payslipTemplateUploading}
+            >
+              <SelectTrigger className="rounded-xl h-10">
+                <SelectValue placeholder={payslipTemplatesLoading ? 'Loading...' : 'No template'} />
+              </SelectTrigger>
+              <SelectContent>
+                {payslipTemplates.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground font-medium">Template name (optional)</p>
+            <Input
+              value={payslipTemplateName}
+              onChange={(e) => setPayslipTemplateName(e.target.value)}
+              disabled={payslipTemplateUploading}
+              className="rounded-xl h-10"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground font-medium">Upload DOCX</p>
+            <Input
+              type="file"
+              accept=".docx"
+              onChange={(e) => setPayslipTemplateFile(e.target.files?.[0] || null)}
+              disabled={payslipTemplateUploading}
+              className="rounded-xl"
+            />
+            <Button
+              variant="outline"
+              onClick={() => void handleUploadPayslipTemplate()}
+              disabled={payslipTemplateUploading || !payslipTemplateFile}
+              className="rounded-xl w-full gap-2"
+            >
+              {payslipTemplateUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {payslipTemplateUploading ? 'Uploading...' : 'Upload'}
+            </Button>
+          </div>
+        </div>
+      </div>
+
       <Tabs defaultValue="employees">
         <TabsList className="rounded-xl bg-muted/50 p-1 mb-4">
           <TabsTrigger value="employees" className="rounded-lg text-xs font-semibold">
@@ -301,7 +434,11 @@ export default function PayrollPage() {
                   filtered.map((p) => {
                     const emp = employees.find((e) => e.id === p.employeeId);
                     return (
-                      <TableRow key={p.id} className="border-border/50">
+                      <TableRow
+                        key={p.id}
+                        className="border-border/50 cursor-pointer hover:bg-muted/20 transition-colors"
+                        onClick={() => navigate(`/payroll/payslip/${p.id}`, { state: { startInEdit: true, templateId: selectedPayslipTemplateId } })}
+                      >
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-[11px] font-bold">
@@ -323,14 +460,55 @@ export default function PayrollPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
-                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg" onClick={() => setBreakdownId(p.id)}>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0 rounded-lg"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setBreakdownId(p.id);
+                              }}
+                              title="Quick view"
+                            >
                               <Eye className="w-3.5 h-3.5" />
                             </Button>
-                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg" onClick={() => navigate(`/payroll/payslip/${p.id}`)}>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0 rounded-lg"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/payroll/payslip/${p.id}`, { state: { startInEdit: true, templateId: selectedPayslipTemplateId } });
+                              }}
+                              title="Edit payroll row"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0 rounded-lg"
+                              disabled={!selectedPayslipTemplateId || payslipTemplateUploading}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/payroll/payslip/${p.id}`, {
+                                  state: { autoDownload: true, templateId: selectedPayslipTemplateId },
+                                });
+                              }}
+                              title={!selectedPayslipTemplateId ? 'Upload/select payslip template first' : 'Download payslip DOCX'}
+                            >
                               <FileText className="w-3.5 h-3.5" />
                             </Button>
                             {p.status === 'Unpaid' && (
-                              <Button size="sm" variant="outline" className="h-8 text-xs gap-1 rounded-lg" onClick={() => setConfirmPayId(p.id)}>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-xs gap-1 rounded-lg"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setConfirmPayId(p.id);
+                                }}
+                              >
                                 <DollarSign className="w-3 h-3" /> Pay
                               </Button>
                             )}

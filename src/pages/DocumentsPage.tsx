@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Download, Eye, Trash2, FileText, Loader2, UserRound, Search } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 type OnboardingDoc = {
   id?: string;
