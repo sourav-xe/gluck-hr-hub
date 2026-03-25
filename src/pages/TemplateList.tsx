@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { apiFetch } from '@/lib/api';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -27,32 +27,30 @@ export default function TemplateList() {
 
   const fetchTemplates = async () => {
     setLoading(true);
-    const { data, error } = await (supabase as any)
-      .from('document_templates')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } else {
-      setTemplates((data || []).map((t: any) => ({
-        ...t,
-        fields: Array.isArray(t.fields) ? t.fields : [],
-      })));
+    try {
+      const res = await apiFetch('/api/doc-simple-templates');
+      if (res.ok) {
+        const data = await res.json();
+        setTemplates(Array.isArray(data) ? data : []);
+      } else {
+        toast({ title: 'Error loading templates', variant: 'destructive' });
+      }
+    } catch (e: unknown) {
+      toast({ title: 'Error', description: (e as Error).message, variant: 'destructive' });
     }
     setLoading(false);
   };
 
-  useEffect(() => { fetchTemplates(); }, []);
+  useEffect(() => { void fetchTemplates(); }, []);
 
   const handleDelete = async () => {
     if (!deleteId) return;
-    const { error } = await (supabase as any).from('document_templates').delete().eq('id', deleteId);
-    if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } else {
-      toast({ title: '🗑️ Template deleted' });
+    const res = await apiFetch(`/api/doc-simple-templates/${deleteId}`, { method: 'DELETE' });
+    if (res.ok) {
+      toast({ title: 'Template deleted' });
       fetchTemplates();
+    } else {
+      toast({ title: 'Delete failed', variant: 'destructive' });
     }
     setDeleteId(null);
   };

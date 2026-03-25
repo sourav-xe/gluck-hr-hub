@@ -10,7 +10,23 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Download, Eye, Trash2, FileText, LayoutTemplate } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Plus, Download, Eye, Trash2, FileText, Loader2, UserRound, Search } from 'lucide-react';
+
+type OnboardingDoc = {
+  id?: string;
+  docType: string;
+  label?: string;
+  fileName: string;
+  uploadedAt?: string;
+};
+
+function base64ToBlob(b64: string, mime: string): Blob {
+  const byteStr = atob(b64);
+  const arr = new Uint8Array(byteStr.length);
+  for (let i = 0; i < byteStr.length; i += 1) arr[i] = byteStr.charCodeAt(i);
+  return new Blob([arr], { type: mime || 'application/octet-stream' });
+}
 
 export default function DocumentsPage() {
   const navigate = useNavigate();

@@ -4,7 +4,9 @@ import cors from 'cors';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { User, Employee, AnnouncementSettings } from './models.js';
+import multer from 'multer';
+import { User, Employee, AnnouncementSettings, SimpleDocTemplate } from './models.js';
+import { analyzeDocxPlaceholders } from './services/docxRedAndMustache.js';
 import { registerHrDataRoutes } from './hrDataRoutes.js';
 import { registerDocumentAutomationRoutes } from './documentAutomationRoutes.js';
 
@@ -878,6 +880,95 @@ async function runAutoAnnouncements() {
     console.error('[auto-announcements]', e?.message || e);
   }
 }
+
+// ─── Simple Doc Templates (Mongoose, no Supabase) ───────────────────────────
+const memUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+function serializeSimpleTemplate(doc, includeFile = false) {
+  const o = doc.toObject ? doc.toObject() : doc;
+  const base = {
+    id: o._id.toString(),
+    name: o.name,
+    description: o.description || '',
+    original_file_name: o.originalFileName || '',
+    file_type: o.fileType || 'docx',
+    fields: Array.isArray(o.fields) ? o.fields.map((f) => ({ fieldName: f.fieldName, placeholder: f.placeholder })) : [],
+    created_at: o.createdAt ? o.createdAt.toISOString() : new Date().toISOString(),
+  };
+  if (includeFile && o.originalFileBase64) {
+    base.original_file_url = `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${o.originalFileBase64}`;
+  }
+  return base;
+}
+
+app.get('/api/doc-simple-templates', authMiddleware, async (req, res) => {
+  try {
+    const docs = await SimpleDocTemplate.find().sort({ createdAt: -1 }).lean();
+    res.json(docs.map((d) => serializeSimpleTemplate({ toObject: () => d })));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/doc-simple-templates/:id', authMiddleware, async (req, res) => {
+  try {
+    const doc = await SimpleDocTemplate.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: 'Not found' });
+    res.json(serializeSimpleTemplate(doc, true));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/doc-simple-templates', authMiddleware, memUpload.single('file'), async (req, res) => {
+  try {
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'No file uploaded' });
+    const { templateName, description } = req.body;
+    if (!templateName) return res.status(400).json({ error: 'templateName is required' });
+
+    // Parse red-colored text fields from DOCX
+    let fields = [];
+    try {
+      const { redSnippets } = analyzeDocxPlaceholders(file.buffer);
+      fields = redSnippets.map((snippet) => ({
+        fieldName: snippet.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase(),
+        placeholder: snippet,
+      }));
+    } catch {
+      // parsing failure is non-fatal
+    }
+
+    const doc = await SimpleDocTemplate.create({
+      name: templateName,
+      description: description || '',
+      originalFileName: file.originalname,
+      fileType: 'docx',
+      fields,
+      originalFileBase64: file.buffer.toString('base64'),
+      createdBy: req.auth?.userId || '',
+    });
+
+    res.json({
+      message: `Template "${templateName}" uploaded successfully`,
+      fieldsFound: fields.length,
+      template: serializeSimpleTemplate(doc),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/doc-simple-templates/:id', authMiddleware, async (req, res) => {
+  try {
+    const doc = await SimpleDocTemplate.findByIdAndDelete(req.params.id);
+    if (!doc) return res.status(404).json({ error: 'Not found' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+// ────────────────────────────────────────────────────────────────────────────
 
 async function start() {
   const { host, dbName } = parseMongoConnectionInfo(MONGODB_URI);

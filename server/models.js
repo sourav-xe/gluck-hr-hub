@@ -218,6 +218,27 @@ const documentAutomationRunSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const simpleDocTemplateSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    description: { type: String, default: '' },
+    originalFileName: { type: String, default: '' },
+    fileType: { type: String, default: 'docx' },
+    fields: {
+      type: [
+        {
+          fieldName: { type: String, default: '' },
+          placeholder: { type: String, default: '' },
+        },
+      ],
+      default: () => [],
+    },
+    originalFileBase64: { type: String, default: '' },
+    createdBy: { type: String, default: '' },
+  },
+  { timestamps: true }
+);
+
 const announcementSettingsSchema = new mongoose.Schema(
   {
     birthdayTemplates: {
@@ -265,3 +286,5 @@ export const DocumentTemplate =
   mongoose.models.DocumentTemplate || mongoose.model('DocumentTemplate', documentTemplateSchema);
 export const DocumentAutomationRun =
   mongoose.models.DocumentAutomationRun || mongoose.model('DocumentAutomationRun', documentAutomationRunSchema);
+export const SimpleDocTemplate =
+  mongoose.models.SimpleDocTemplate || mongoose.model('SimpleDocTemplate', simpleDocTemplateSchema);

@@ -5,7 +5,7 @@ import { UserRole } from '@/types/hr';
 import ThemeToggle from '@/components/ThemeToggle';
 import {
   LayoutDashboard, Users, CalendarCheck, CalendarOff, DollarSign,
-  FileText, Zap, Settings, Megaphone, ChevronLeft, ChevronRight, Menu, X, Bell, LogOut, UserRound, FolderOpen, ClipboardCheck
+  FileText, Zap, Settings, Megaphone, ChevronLeft, ChevronRight, Menu, X, Bell, LogOut, UserRound, FolderOpen, ClipboardCheck, LayoutTemplate
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -20,6 +20,7 @@ const navItems = [
   { title: 'My Documents', url: '/my-documents', icon: FolderOpen, roles: ['reporting_manager', 'employee', 'freelancer_intern'] as UserRole[] },
   { title: 'Payroll', url: '/payroll', icon: DollarSign, roles: ['super_admin', 'hr_manager'] as UserRole[] },
   { title: 'Documents', url: '/documents', icon: FileText, roles: ['super_admin', 'hr_manager'] as UserRole[] },
+  { title: 'Auto-Docs', url: '/documents/templates', icon: LayoutTemplate, roles: ['super_admin', 'hr_manager'] as UserRole[] },
   { title: 'Automations', url: '/automations', icon: Zap, roles: ['super_admin', 'hr_manager'] as UserRole[] },
   { title: 'Announcements', url: '/announcements', icon: Megaphone, roles: ['super_admin'] as UserRole[] },
   { title: 'Settings', url: '/settings', icon: Settings, roles: ['super_admin'] as UserRole[] },

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { apiFetch } from '@/lib/api';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,18 +49,10 @@ export default function TemplateUpload() {
       formData.append('templateName', templateName);
       formData.append('description', description);
 
-      const { data: { session } } = await supabase.auth.getSession();
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-template`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: formData,
-        }
-      );
+      const response = await apiFetch('/api/doc-simple-templates', {
+        method: 'POST',
+        body: formData,
+      });
 
       const data = await response.json();
 
@@ -69,9 +61,9 @@ export default function TemplateUpload() {
       }
 
       setResult({ fieldsFound: data.fieldsFound, templateId: data.template.id });
-      toast({ title: '✅ Template uploaded', description: data.message });
-    } catch (err: any) {
-      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Template uploaded', description: data.message });
+    } catch (err: unknown) {
+      toast({ title: 'Upload failed', description: (err as Error).message, variant: 'destructive' });
     } finally {
       setUploading(false);
     }
@@ -100,7 +92,7 @@ export default function TemplateUpload() {
           {result.fieldsFound === 0 && (
             <div className="flex items-start gap-2 p-3 rounded-xl bg-warning/10 text-warning text-xs text-left">
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-              <p>No red-colored text was detected. Make sure dynamic fields in your DOCX are colored <strong>red</strong> (e.g., #FF0000). You can edit the template fields manually.</p>
+              <p>No red-colored text was detected. Make sure dynamic fields in your DOCX are colored <strong>red</strong> (e.g., #FF0000).</p>
             </div>
           )}
           <div className="flex gap-2 justify-center pt-2">
@@ -169,10 +161,10 @@ export default function TemplateUpload() {
           </div>
 
           <div className="p-3 rounded-xl bg-info/5 border border-info/20 text-xs text-muted-foreground space-y-1">
-            <p className="font-semibold text-foreground">📌 How it works</p>
+            <p className="font-semibold text-foreground">How it works</p>
             <p>• Any text in <span className="text-destructive font-bold">red color</span> in your DOCX will become a dynamic field</p>
             <p>• Black/normal text will remain static</p>
-            <p>• Watermarks, signatures, formatting are preserved</p>
+            <p>• Watermarks, signatures, and formatting are preserved</p>
           </div>
 
           <Button

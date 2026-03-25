@@ -1,18 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { apiFetch } from '@/lib/api';
 import PageHeader from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Download, Loader2, FileText, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Download, Loader2, FileText } from 'lucide-react';
 import JSZip from 'jszip';
 
 interface TemplateField {
   fieldName: string;
   placeholder: string;
-  xmlPath?: string;
 }
 
 interface Template {
@@ -29,10 +28,8 @@ function escapeRegex(str: string): string {
 }
 
 function fixBrokenAlignment(xml: string): string {
-  // Fix explicit distribute alignment globally
   let result = xml.replace(/<w:jc\s+w:val=["']distribute["']\s*\/>/gi, '<w:jc w:val="left"/>');
 
-  // Normalize short bold / heading-like paragraphs that commonly break in PDF/preview renderers
   result = result.replace(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/g, (para) => {
     const isHeadingStyle = /<w:pStyle\s+w:val=["'][^"']*Heading[^"']*["']/i.test(para);
     const hasBold = /<w:b(?:\s*\/?>|\s+w:val=["'](?:true|1)["'][^>]*\/?>)/i.test(para);
@@ -50,14 +47,9 @@ function fixBrokenAlignment(xml: string): string {
     if (!shouldNormalize) return para;
 
     let updated = para;
-
-    // Replace explicit problematic alignments
     updated = updated.replace(/<w:jc\s+w:val=["'](?:both|distribute)["']\s*\/>/gi, '<w:jc w:val="left"/>');
-
-    // Tabs inside heading lines become exaggerated gaps in some PDF/preview renderers
     updated = updated.replace(/<w:tab\s*\/>/gi, '<w:t xml:space="preserve"> </w:t>');
 
-    // If paragraph properties exist but no explicit alignment, inject left alignment to override style inheritance
     if (/<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>/i.test(updated)) {
       updated = updated.replace(/<w:pPr\b([^>]*)>([\s\S]*?)<\/w:pPr>/i, (match, attrs, content) => {
         if (/<w:jc\b/i.test(content)) {
@@ -107,31 +99,32 @@ export default function GenerateFromTemplate() {
   useEffect(() => {
     const fetchTemplate = async () => {
       if (!id) return;
-      const { data, error } = await (supabase as any)
-        .from('document_templates')
-        .select('*')
-        .eq('id', id)
-        .single();
+      try {
+        const res = await apiFetch(`/api/doc-simple-templates/${id}`);
+        if (!res.ok) {
+          toast({ title: 'Template not found', variant: 'destructive' });
+          navigate('/documents/templates');
+          return;
+        }
+        const data = await res.json();
+        const t: Template = {
+          ...data,
+          fields: Array.isArray(data.fields) ? data.fields as TemplateField[] : [],
+        };
+        setTemplate(t);
+        setDocumentName(`${t.name} - ${new Date().toLocaleDateString()}`);
 
-      if (error || !data) {
-        toast({ title: 'Template not found', variant: 'destructive' });
+        const initialValues: Record<string, string> = {};
+        t.fields.forEach((f: TemplateField) => { initialValues[f.placeholder] = ''; });
+        setFieldValues(initialValues);
+      } catch {
+        toast({ title: 'Failed to load template', variant: 'destructive' });
         navigate('/documents/templates');
-        return;
+      } finally {
+        setLoading(false);
       }
-
-      const t: Template = {
-        ...data,
-        fields: Array.isArray(data.fields) ? data.fields as TemplateField[] : [],
-      };
-      setTemplate(t);
-      setDocumentName(`${t.name} - ${new Date().toLocaleDateString()}`);
-
-      const initialValues: Record<string, string> = {};
-      t.fields.forEach((f: TemplateField) => { initialValues[f.placeholder] = ''; });
-      setFieldValues(initialValues);
-      setLoading(false);
     };
-    fetchTemplate();
+    void fetchTemplate();
   }, [id]);
 
   const handleGenerate = async () => {
@@ -139,7 +132,6 @@ export default function GenerateFromTemplate() {
     setGenerating(true);
 
     try {
-      // Decode base64 data URL to ArrayBuffer
       const fileUrl = template.original_file_url;
       let arrayBuffer: ArrayBuffer;
 
@@ -156,10 +148,8 @@ export default function GenerateFromTemplate() {
         arrayBuffer = await resp.arrayBuffer();
       }
 
-      // Parse and modify DOCX client-side
       const zip = await JSZip.loadAsync(arrayBuffer);
 
-      // Process all XML parts (document, headers, footers)
       const xmlFiles = ['word/document.xml'];
       zip.forEach((path) => {
         if (/^word\/(header|footer)\d*\.xml$/.test(path)) xmlFiles.push(path);
@@ -172,9 +162,11 @@ export default function GenerateFromTemplate() {
         }
       }
 
-      const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      const blob = await zip.generateAsync({
+        type: 'blob',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      });
 
-      // Download
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
@@ -184,9 +176,9 @@ export default function GenerateFromTemplate() {
       document.body.removeChild(a);
       URL.revokeObjectURL(blobUrl);
 
-      toast({ title: '✅ Document generated!', description: 'Download started automatically' });
-    } catch (err: any) {
-      toast({ title: 'Generation failed', description: err.message, variant: 'destructive' });
+      toast({ title: 'Document generated!', description: 'Download started automatically' });
+    } catch (err: unknown) {
+      toast({ title: 'Generation failed', description: (err as Error).message, variant: 'destructive' });
     } finally {
       setGenerating(false);
     }
