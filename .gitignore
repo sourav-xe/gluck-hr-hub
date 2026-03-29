@@ -14,7 +14,7 @@ dist-ssr
 *.local
 
 # Generated document automation files (templates + exports)
-server/storage
+backend/storage
 
 # Editor directories and files
 .vscode/*
