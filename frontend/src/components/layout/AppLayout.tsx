@@ -1,16 +1,25 @@
 import { useState, useEffect } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@/types/hr';
 import { SIDEBAR_NAV_DEFINITIONS, type SidebarNavKey } from '@/lib/sidebarNav';
 import ThemeToggle from '@/components/ThemeToggle';
 import {
   LayoutDashboard, Users, CalendarCheck, CalendarOff, DollarSign,
-  FileText, Zap, Settings, Megaphone, ChevronLeft, ChevronRight, Menu, X, Bell, LogOut, UserRound, FolderOpen, ClipboardCheck, LayoutTemplate, Search
+  FileText, Zap, Settings, Megaphone, ChevronLeft, ChevronRight, Menu, X, LogOut, UserRound, FolderOpen, ClipboardCheck, LayoutTemplate, Search
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { motion, AnimatePresence } from 'framer-motion';
+import NotificationDropdown from '@/components/shared/NotificationDropdown';
 
 const SIDEBAR_ICONS: Record<SidebarNavKey, LucideIcon> = {
   dashboard: LayoutDashboard,
@@ -44,6 +53,7 @@ const roleLabels: Record<UserRole, string> = {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, hasAccess, signOut, navItemVisible } = useAuth();
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -160,19 +170,45 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl relative">
-              <Bell className="h-4 w-4" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full ring-2 ring-background" />
-            </Button>
+            <NotificationDropdown />
             <div className="h-6 w-px bg-border/50 mx-1" />
             <div className="flex items-center gap-3 pl-1">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-semibold leading-tight">{user.name}</p>
-                <p className="text-[10px] text-muted-foreground">{roleLabels[user.role]}</p>
-              </div>
-              <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold shadow-md shadow-primary/20">
-                {user.name.split(' ').map(n => n[0]).join('')}
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button type="button" className="flex items-center gap-3 pl-1 cursor-pointer">
+                    <div className="text-right hidden sm:block">
+                      <p className="text-sm font-semibold leading-tight">{user.name}</p>
+                      <p className="text-[10px] text-muted-foreground">{roleLabels[user.role]}</p>
+                    </div>
+                    <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold shadow-md shadow-primary/20">
+                      {user.name?.trim().split(/\s+/).filter(Boolean).map((n) => n[0]).join('')}
+                    </div>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="rounded-2xl">
+                  <DropdownMenuItem
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      navigate('/my-profile');
+                    }}
+                  >
+                    <UserRound className="w-4 h-4 mr-2" />
+                    My Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      void signOut();
+                      // No need to navigate manually; routes react to auth state.
+                    }}
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Log out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </header>

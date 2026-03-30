@@ -7,7 +7,7 @@ import StatusBadge from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import MemberList from '@/components/ui/member-list';
 import {
   Plus, Search, Pencil, Loader2,
   ClipboardList, CheckCircle2, AlertCircle,
@@ -157,103 +157,113 @@ export default function EmployeeList() {
             <Loader2 className="w-5 h-5 animate-spin" /> Loading employees...
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow className="border-border/50">
-                <TableHead>Name</TableHead>
-                <TableHead className="hidden md:table-cell">Role / Department</TableHead>
-                <TableHead className="hidden sm:table-cell">Type</TableHead>
-                <TableHead className="hidden lg:table-cell">Joining Date</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Onboarding</TableHead>
-                {canEdit && <TableHead className="w-20 text-right">Actions</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginated.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={canEdit ? 7 : 6} className="text-center py-12 text-muted-foreground">
-                    No employees found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                paginated.map(emp => {
+          <MemberList
+            columns={[
+              {
+                id: 'name',
+                header: 'Name',
+                width: '260px',
+                cellClassName: 'min-w-[260px]',
+                render: (emp: Employee) => {
                   const isPending = emp.onboardingComplete === false;
                   return (
-                    <TableRow
-                      key={emp.id}
-                      className={`cursor-pointer hover:bg-muted/30 transition-colors border-border/50 ${isPending ? 'bg-amber-500/3' : ''}`}
-                      onClick={() => navigate(`/employees/${emp.id}`)}
-                    >
-                      {/* Name */}
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                            isPending
-                              ? 'bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30'
-                              : 'bg-gradient-to-br from-primary/20 to-primary/5 text-primary'
-                          }`}>
-                            {emp.fullName.split(' ').map(n => n[0]).join('')}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-sm leading-none">{emp.fullName}</p>
-                            <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{emp.email}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-
-                      {/* Role / Department */}
-                      <TableCell className="hidden md:table-cell">
-                        {emp.jobTitle || emp.department ? (
-                          <div>
-                            <p className="text-sm font-medium">{emp.jobTitle || '—'}</p>
-                            <p className="text-[11px] text-muted-foreground">{emp.department || ''}</p>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground italic">Not set yet</span>
-                        )}
-                      </TableCell>
-
-                      {/* Type */}
-                      <TableCell className="hidden sm:table-cell">
-                        <StatusBadge status={emp.type} />
-                      </TableCell>
-
-                      {/* Joining Date */}
-                      <TableCell className="text-sm hidden lg:table-cell font-mono text-muted-foreground">
-                        {emp.joiningDate || <span className="italic text-muted-foreground/50">—</span>}
-                      </TableCell>
-
-                      {/* Status */}
-                      <TableCell><StatusBadge status={emp.status} /></TableCell>
-
-                      {/* Onboarding */}
-                      <TableCell>
-                        <OnboardingBadge status={emp.onboardingComplete} />
-                      </TableCell>
-
-                      {/* Actions */}
-                      {canEdit && (
-                        <TableCell onClick={e => e.stopPropagation()}>
-                          <div className="flex items-center justify-end">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 rounded-lg"
-                              title="Edit employee"
-                              onClick={(e) => { e.stopPropagation(); navigate(`/employees/${emp.id}/edit`); }}
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                          isPending
+                            ? 'bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30'
+                            : 'bg-gradient-to-br from-primary/20 to-primary/5 text-primary'
+                        }`}
+                      >
+                        {emp.fullName.split(' ').map((n) => n[0]).join('')}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm leading-none">{emp.fullName}</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{emp.email}</p>
+                      </div>
+                    </div>
                   );
-                })
-              )}
-            </TableBody>
-          </Table>
+                },
+              },
+              {
+                id: 'role',
+                header: 'Role / Department',
+                width: '220px',
+                cellClassName: 'min-w-[220px]',
+                render: (emp: Employee) =>
+                  emp.jobTitle || emp.department ? (
+                    <div>
+                      <p className="text-sm font-medium">{emp.jobTitle || '—'}</p>
+                      <p className="text-[11px] text-muted-foreground">{emp.department || ''}</p>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground italic">Not set yet</span>
+                  ),
+              },
+              {
+                id: 'type',
+                header: 'Type',
+                width: '120px',
+                cellClassName: 'min-w-[120px]',
+                render: (emp: Employee) => <StatusBadge status={emp.type} />,
+              },
+              {
+                id: 'joining',
+                header: 'Joining Date',
+                width: '150px',
+                cellClassName: 'min-w-[150px]',
+                render: (emp: Employee) =>
+                  emp.joiningDate ? (
+                    <span className="text-sm font-mono text-muted-foreground">{emp.joiningDate}</span>
+                  ) : (
+                    <span className="text-sm italic text-muted-foreground/50">—</span>
+                  ),
+              },
+              {
+                id: 'status',
+                header: 'Status',
+                width: '130px',
+                cellClassName: 'min-w-[130px]',
+                render: (emp: Employee) => <StatusBadge status={emp.status} />,
+              },
+              {
+                id: 'onboarding',
+                header: 'Onboarding',
+                width: '160px',
+                cellClassName: 'min-w-[160px]',
+                render: (emp: Employee) => <OnboardingBadge status={emp.onboardingComplete} />,
+              },
+              ...(canEdit
+                ? [
+                    {
+                      id: 'actions',
+                      header: 'Actions',
+                      width: '110px',
+                      cellClassName: 'min-w-[110px] flex justify-end',
+                      render: (emp: Employee) => (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 rounded-lg"
+                          title="Edit employee"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/employees/${emp.id}/edit`);
+                          }}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                      ),
+                    },
+                  ]
+                : []),
+            ]}
+            rows={paginated}
+            getRowId={(emp) => emp.id}
+            onRowClick={(emp) => navigate(`/employees/${emp.id}`)}
+            emptyState="No employees found"
+            className="border-0 bg-transparent rounded-none"
+          />
         )}
 
         {totalPages > 1 && (

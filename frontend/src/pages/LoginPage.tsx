@@ -1,25 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { getApiBaseUrl, saveStoredAuth } from '@/lib/api';
-import { Eye, EyeOff, LogIn, Zap, Shield, Users, BarChart3, FileText } from 'lucide-react';
+import { Eye, EyeOff, Shield, Users, BarChart3, FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
-
-const DEMO_USER = {
-  token: 'demo-token-bypass',
-  user: {
-    id: 'demo-admin-001',
-    name: 'Demo Admin',
-    email: 'admin@demo.com',
-    role: 'super_admin',
-    employeeId: 'demo-emp-001',
-    onboardingComplete: true,
-    needsOnboarding: false,
-  },
-};
+import MotionButton from '@/components/ui/motion-button';
 
 const features = [
   { icon: Users, label: 'Employee Management', desc: 'Full lifecycle tracking' },
@@ -190,41 +177,14 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <Button
+            <MotionButton
               type="submit"
               disabled={loading}
-              className="w-full h-12 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 gap-2.5"
+              className="mt-2 w-full"
+              label={loading ? 'Signing in...' : 'Sign In'}
             >
-              {loading ? (
-                <span className="animate-spin w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full" />
-              ) : (
-                <LogIn className="w-4 h-4" />
-              )}
-              {loading ? 'Signing in...' : 'Sign In'}
-            </Button>
-
-            <div className="relative py-1">
-              <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border/50" /></div>
-              <div className="relative flex justify-center text-xs"><span className="bg-background px-3 text-muted-foreground">or</span></div>
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full h-12 rounded-xl text-sm font-bold gap-2.5 border-primary/20 hover:bg-primary/5 hover:border-primary/40 transition-all"
-              onClick={() => {
-                saveStoredAuth(DEMO_USER);
-                window.location.href = '/';
-              }}
-            >
-              <Zap className="w-4 h-4 text-primary" />
-              Demo Login
-            </Button>
+            </MotionButton>
           </form>
-
-          <p className="text-xs text-center text-muted-foreground/60">
-            Demo mode works without backend · Full features require local server
-          </p>
         </motion.div>
       </div>
     </div>
